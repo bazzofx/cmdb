@@ -276,8 +276,10 @@ export interface DashboardMetrics {
   servers_missing_contact: number;
   servers_without_secure_boot: number;
   servers_incomplete_metadata: number;
+  total_products?: number;
   // Chart breakdowns
   servers_by_business_unit: { name: string; count: number }[];
+  servers_by_product?: { name: string; count: number }[];
   servers_by_environment: { name: string; count: number }[];
   servers_by_datacenter: { name: string; count: number }[];
   servers_by_support_team: { name: string; count: number }[];

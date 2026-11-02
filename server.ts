@@ -334,6 +334,7 @@ async function startServer() {
 
     const buSet = new Set(servers.map(s => s.business_unit).filter(Boolean));
     const subBuSet = new Set(servers.map(s => s.sub_business_unit).filter(Boolean));
+    const productSet = new Set(servers.map(s => s.product).filter(Boolean));
     const supportTeamSet = new Set(servers.map(s => s.support_team).filter(Boolean));
     const dcSet = new Set(servers.map(s => s.datacenter).filter(Boolean));
     const managerSet = new Set(servers.map(s => s.manager).filter(Boolean));
@@ -359,6 +360,7 @@ async function startServer() {
       total_servers: total,
       powered_on_servers: poweredOn,
       powered_off_servers: poweredOff,
+      total_products: productSet.size,
       total_business_units: buSet.size,
       total_sub_business_units: subBuSet.size,
       total_support_teams: supportTeamSet.size,
@@ -369,6 +371,7 @@ async function startServer() {
       servers_without_secure_boot: secureBootDisabled,
       servers_incomplete_metadata: incompleteMeta,
       servers_by_business_unit: countBy(s => s.business_unit).sort((a, b) => b.count - a.count),
+      servers_by_product: countBy(s => s.product).filter(p => p.name !== 'Unassigned').sort((a, b) => b.count - a.count).slice(0, 10),
       servers_by_environment: countBy(s => s.environment).sort((a, b) => b.count - a.count),
       servers_by_datacenter: countBy(s => s.datacenter).sort((a, b) => b.count - a.count),
       servers_by_support_team: countBy(s => s.support_team).sort((a, b) => b.count - a.count),

@@ -92,7 +92,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1020] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
+    <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
       {/* 1. Global Navbar */}
       <Navbar
         onOpenSearch={() => setIsSearchOpen(true)}
@@ -111,13 +111,13 @@ export function App() {
           metrics={{
             serverCount: metrics?.total_servers || 0,
             buCount: metrics?.total_business_units || 0,
-            productCount: 3,
+            productCount: metrics?.total_products || 3,
             incidentCount: 1,
           }}
         />
 
         {/* 3. Main Workspace Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0B1020]">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#070B14]">
           {currentView === 'overview' && (
             <OverviewView
               metrics={metrics}
