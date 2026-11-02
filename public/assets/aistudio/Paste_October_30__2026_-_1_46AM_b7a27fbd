@@ -1,0 +1,1804 @@
+# SERVER OWNERSHIP & BUSINESS INTELLIGENCE DASHBOARD
+## Full Application Development Specification
+
+# 1. PROJECT OVERVIEW
+
+Build a modern, lightweight web application designed to provide centralised visibility of server infrastructure, ownership, business units, technical relationships and operational responsibilities.
+
+The application will ingest server inventory data from CSV files or a database and transform it into an interactive dashboard.
+
+The primary purpose is to support Security Operations, Infrastructure Operations, Vulnerability Management and Incident Response teams.
+
+The application must make it easy to:
+
+- Identify server owners and their contact details.
+- Identify the business unit responsible for a server.
+- Understand relationships between servers, business units, support teams and infrastructure.
+- Investigate incidents and determine potential business impact.
+- Identify servers requiring patching or remediation.
+- Generate affected-server lists for vulnerability assessments.
+- Quickly identify the correct contacts for incident communications.
+- Visualise infrastructure relationships through interactive diagrams.
+- Search and filter infrastructure records using multiple attributes.
+- Generate communication-ready reports.
+
+This is an operational intelligence platform, not simply an asset inventory application.
+
+The interface should feel like a modern SOC platform: clean, professional, dark, lightweight, responsive and information-dense without becoming cluttered.
+
+# 2. DESIGN PHILOSOPHY
+
+## 2.1 Visual design
+
+Implement a modern glassmorphism-inspired interface.
+
+Use:
+- Dark navy or charcoal background.
+- Slightly transparent panels.
+- Subtle backdrop blur.
+- Thin, low-contrast borders.
+- Soft shadows.
+- Rounded corners.
+- Restrained accent colours.
+- Minimal gradients.
+- Clear typography.
+- Consistent spacing.
+
+Avoid:
+- Excessive neon effects.
+- Large decorative elements.
+- Heavy animations.
+- Excessive use of cards.
+- Unnecessary visual clutter.
+- Oversized dashboard metrics.
+
+The application should look like a professional infrastructure intelligence platform.
+
+Suggested colour scheme:
+
+Background:
+- Main background: #0B1020
+- Secondary background: #111827
+- Panel background: rgba(255,255,255,0.04)
+- Panel border: rgba(255,255,255,0.09)
+
+Accent colours:
+- Primary blue: #60A5FA
+- Cyan: #22D3EE
+- Purple: #A78BFA
+- Green: #34D399
+- Amber: #FBBF24
+- Red: #F87171
+
+Use colours consistently:
+- Green: Healthy / powered on / compliant.
+- Amber: Warning / attention required / missing information.
+- Red: Critical / failed / security incident.
+- Blue: Informational / infrastructure.
+- Purple: Business ownership / organisational information.
+- Grey: Unknown / unavailable / unassigned.
+
+Do not rely exclusively on colours. Include text labels and icons.
+
+## 2.2 Navigation
+
+Use a persistent left-hand navigation sidebar.
+
+Main navigation:
+
+1. Overview
+2. Server Inventory
+3. Business Units
+4. Ownership Explorer
+5. Infrastructure Map
+6. Incident Triage
+7. Patching & Vulnerabilities
+8. Communications
+9. Reports
+10. Data Management
+11. Settings
+
+The sidebar should be collapsible.
+
+The main content area should adapt to the available width.
+
+A global search bar should be available in the top navigation area.
+
+# 3. DATABASE AND DATA MODEL
+
+The supplied CSV represents the initial source of truth.
+
+The application must support importing all supplied columns without losing information.
+
+The initial source headings are:
+
+Host
+VM
+Support Team
+Environment
+Manager
+Email
+Customer
+PowerState
+DNS Name
+Primary IP Address
+EFI Secure boot
+Annotation
+1_BusinessUnit
+2_SubBusinessUnit
+4_Product
+5_Function
+6_Environmen
+7_OrganisationShortCode
+8_OrganisationAbbreviated
+Datacenter
+Network #1
+Network #2
+Network #3
+
+Preserve the original source column names in the import mapping layer.
+
+Internally, use clean and consistent database field names.
+
+Suggested mappings:
+
+host
+vm
+support_team
+environment
+manager
+email
+customer
+power_state
+dns_name
+primary_ip_address
+efi_secure_boot
+annotation
+business_unit
+sub_business_unit
+product
+function
+business_environment
+organisation_short_code
+organisation_abbreviated
+datacenter
+network_1
+network_2
+network_3
+
+The original column 6 name contains a spelling inconsistency. Support the exact source heading "6_Environmen" and map it to "business_environment".
+
+## 3.1 Database technology
+
+Use PostgreSQL as the preferred production database.
+
+For a local prototype, SQLite is acceptable if the application uses a database abstraction layer that makes migration to PostgreSQL straightforward.
+
+Do not use browser localStorage as the primary database.
+
+The application must be capable of handling tens of thousands of server records without significant performance degradation.
+
+## 3.2 Core database tables
+
+Create the following logical entities.
+
+### Servers
+
+This is the primary asset table.
+
+Fields:
+
+- id: UUID primary key.
+- host: String.
+- vm: String.
+- support_team: String.
+- environment: String.
+- manager: String.
+- email: String.
+- customer: String.
+- power_state: String.
+- dns_name: String.
+- primary_ip_address: String.
+- efi_secure_boot: Boolean or nullable Boolean.
+- annotation: Text.
+- business_unit_id: Foreign key.
+- sub_business_unit_id: Foreign key.
+- product_id: Foreign key.
+- function: String.
+- business_environment: String.
+- organisation_short_code: String.
+- organisation_abbreviated: String.
+- datacenter_id: Foreign key.
+- imported_at: Timestamp.
+- updated_at: Timestamp.
+- source_record_hash: String.
+
+### Business Units
+
+Create a separate business unit table.
+
+Fields:
+
+- id.
+- name.
+- organisation_short_code.
+- organisation_abbreviated.
+- customer.
+- default_manager.
+- default_email.
+- description.
+- created_at.
+- updated_at.
+
+A business unit may own multiple servers.
+
+A business unit may contain multiple sub-business units.
+
+### Sub-Business Units
+
+Fields:
+
+- id.
+- business_unit_id.
+- name.
+- manager.
+- email.
+- description.
+
+### Products
+
+Fields:
+
+- id.
+- name.
+- business_unit_id.
+- description.
+
+A product can be associated with multiple servers.
+
+### Datacenters
+
+Fields:
+
+- id.
+- name.
+- location.
+- description.
+
+A datacenter can host multiple hypervisors and servers.
+
+### Networks
+
+Create a network table to normalise network relationships.
+
+Fields:
+
+- id.
+- network_name.
+- network_type.
+- description.
+
+Create a server_network junction table:
+
+- server_id.
+- network_id.
+- network_slot.
+
+This allows one server to be connected to multiple networks.
+
+### Managers and Contacts
+
+Create a contacts table.
+
+Fields:
+
+- id.
+- full_name.
+- email.
+- organisation.
+- business_unit_id.
+- sub_business_unit_id.
+- role.
+- active.
+- created_at.
+- updated_at.
+
+Do not assume that the manager field is always the technical owner.
+
+The application must distinguish between:
+
+- Business owner.
+- Technical owner.
+- Support team.
+- Service manager.
+- Escalation contact.
+
+Initially, populate available information using the supplied Manager, Email and Support Team columns.
+
+Allow administrators to enrich these records later.
+
+## 3.3 Data integrity
+
+Implement the following rules:
+
+- Host should be treated as an important infrastructure identifier.
+- VM should be treated as a separate identifier.
+- DNS Name should not be assumed to be unique.
+- IP addresses should not be treated as unique identifiers.
+- Email addresses should be normalised to lowercase.
+- Empty values should remain null rather than being replaced with misleading defaults.
+- EFI Secure Boot should support TRUE, FALSE and UNKNOWN.
+- PowerState should preserve the original value.
+- Business unit names should be normalised to avoid duplicate entities caused by whitespace or casing differences.
+
+Never automatically merge servers simply because they share an IP address, DNS name or business unit.
+
+Use an explicit record-matching process.
+
+# 4. DATA IMPORT ENGINE
+
+Create a dedicated Data Management page.
+
+The application must support CSV imports.
+
+## 4.1 Import workflow
+
+The import process should have five stages.
+
+Stage 1: Upload
+
+Allow users to upload CSV files.
+
+Support:
+- Drag and drop.
+- File selection.
+- Large CSV files.
+- UTF-8 encoding.
+- Different delimiters where possible.
+
+Stage 2: Column mapping
+
+Display detected CSV columns.
+
+Allow users to map each incoming column to an internal database field.
+
+Automatically recognise the supplied source headings.
+
+Stage 3: Preview
+
+Display the first 20 records.
+
+Highlight:
+- Missing hostnames.
+- Missing manager information.
+- Missing email addresses.
+- Missing business units.
+- Invalid IP addresses.
+- Duplicate records.
+- Invalid boolean values.
+
+Stage 4: Import strategy
+
+Support three modes:
+
+1. Insert new records.
+2. Update existing records.
+3. Synchronise records.
+
+Use Host as the preferred matching key, with configurable additional matching logic.
+
+Do not delete records automatically during synchronisation.
+
+If a record disappears from a new import, flag it as potentially missing from the source inventory.
+
+Stage 5: Import summary
+
+Display:
+- Total records processed.
+- New records.
+- Updated records.
+- Unchanged records.
+- Duplicate records.
+- Failed records.
+- Records requiring attention.
+
+Provide an option to download failed records as CSV.
+
+Maintain an import history with:
+- Filename.
+- Import date.
+- User.
+- Number of records.
+- Import status.
+- Errors.
+
+# 5. GLOBAL DASHBOARD
+
+The Overview page should provide an immediate operational picture of the infrastructure.
+
+## 5.1 Summary metrics
+
+Display the following metrics:
+
+- Total servers.
+- Powered-on servers.
+- Powered-off servers.
+- Total business units.
+- Total sub-business units.
+- Total support teams.
+- Total datacenters.
+- Total unique managers.
+- Servers missing ownership information.
+- Servers missing contact information.
+- Servers without EFI Secure Boot enabled.
+- Servers with incomplete organisational metadata.
+
+All figures must be calculated dynamically from the database.
+
+Do not hardcode dashboard values.
+
+## 5.2 Dashboard charts
+
+Create the following visualisations.
+
+A. Servers by Business Unit
+
+Use a horizontal bar chart.
+
+Allow users to click a business unit to filter the entire dashboard.
+
+B. Servers by Environment
+
+Display distribution across environments.
+
+C. Servers by Datacenter
+
+Display infrastructure distribution.
+
+D. Servers by Support Team
+
+Display server ownership and support responsibility.
+
+E. Servers by Power State
+
+Display powered-on versus powered-off assets.
+
+F. Secure Boot Status
+
+Display:
+- Enabled.
+- Disabled.
+- Unknown.
+
+G. Ownership Completeness
+
+Display:
+- Fully assigned.
+- Missing manager.
+- Missing email.
+- Missing business unit.
+- Missing support team.
+
+## 5.3 Recent activity
+
+Show recent application events:
+
+- New server imported.
+- Server ownership changed.
+- Business unit updated.
+- Contact information changed.
+- New incident created.
+- New patching campaign created.
+
+Include timestamps and the affected server or business unit.
+
+# 6. GLOBAL SEARCH ENGINE
+
+The global search engine is one of the most important features.
+
+It should be accessible from every page.
+
+Implement a search bar in the top navigation.
+
+Support searching across:
+
+- Host.
+- VM.
+- DNS Name.
+- IP address.
+- Manager.
+- Email.
+- Customer.
+- Business Unit.
+- Sub-Business Unit.
+- Product.
+- Function.
+- Datacenter.
+- Network.
+- Support Team.
+- Organisation Short Code.
+
+## 6.1 Search behaviour
+
+Search should support partial matching.
+
+Examples:
+
+Searching for:
+
+"10.200.68"
+
+Should return every matching IP address.
+
+Searching for:
+
+"John Lennon"
+
+Should return all servers associated with that manager.
+
+Searching for:
+
+"BRICK"
+
+Should return matching organisation codes, customers and business units.
+
+Searching for:
+
+"Active Directory"
+
+Should return servers with matching functions.
+
+Searching for:
+
+"DC2-PROD"
+
+Should return all servers connected to that network.
+
+## 6.2 Search results
+
+Display results in a structured dropdown.
+
+Each result should show:
+
+- Host.
+- VM.
+- Business Unit.
+- Manager.
+- IP address.
+- Environment.
+
+Selecting a result should open the Server Detail page.
+
+Support keyboard navigation.
+
+Implement debounced search and server-side pagination.
+
+# 7. SERVER INVENTORY
+
+Create a dedicated Server Inventory page.
+
+This should be the central searchable infrastructure table.
+
+## 7.1 Table columns
+
+Default visible columns:
+
+- Host.
+- VM.
+- Business Unit.
+- Sub-Business Unit.
+- Manager.
+- Email.
+- Support Team.
+- Environment.
+- Customer.
+- DNS Name.
+- Primary IP Address.
+- Datacenter.
+- Power State.
+- Secure Boot.
+
+Additional columns should be selectable.
+
+## 7.2 Filtering
+
+Implement multi-select filters.
+
+Filters:
+
+- Business Unit.
+- Sub-Business Unit.
+- Customer.
+- Manager.
+- Support Team.
+- Environment.
+- Power State.
+- Datacenter.
+- Product.
+- Function.
+- Secure Boot.
+- Network.
+
+Filters must be combinable.
+
+Example:
+
+Business Unit = Local Government
+AND Environment = SPSE
+AND Datacenter = UK1-SSE-DC1
+AND Secure Boot = FALSE
+
+The table should immediately display matching records.
+
+Show active filters as removable chips.
+
+Include:
+- Clear all filters.
+- Save filter.
+- Export results.
+- Select multiple servers.
+- Bulk actions.
+
+## 7.3 Bulk actions
+
+Allow users to select multiple servers and:
+
+- Export selected records.
+- Copy hostnames.
+- Copy IP addresses.
+- Generate an incident impact report.
+- Generate a business communication list.
+- Create a patching campaign.
+- View shared ownership.
+- View shared infrastructure.
+
+# 8. SERVER DETAIL PAGE
+
+Every server must have its own detailed information page.
+
+This page should be opened by clicking a server anywhere in the application.
+
+## 8.1 Header
+
+Display:
+
+- Hostname.
+- VM identifier.
+- Power state.
+- Business unit.
+- Environment.
+- Primary IP.
+
+Provide quick actions:
+
+- Copy hostname.
+- Copy IP.
+- Copy DNS name.
+- Email manager.
+- Export server details.
+- Add to incident.
+- Add to patching campaign.
+
+## 8.2 Information sections
+
+Organise information into tabs.
+
+Tab 1: Overview
+
+Display all server attributes.
+
+Tab 2: Ownership
+
+Display:
+
+- Business Unit.
+- Sub-Business Unit.
+- Manager.
+- Manager email.
+- Customer.
+- Support Team.
+- Organisation Short Code.
+- Organisation Abbreviated.
+
+Tab 3: Infrastructure
+
+Display:
+
+- Host.
+- VM.
+- Datacenter.
+- Networks.
+- DNS Name.
+- IP Address.
+- Power State.
+
+Tab 4: Security
+
+Display:
+
+- EFI Secure Boot.
+- Security-related annotations.
+- Ownership completeness.
+- Missing metadata warnings.
+
+Allow future integration with vulnerability and endpoint security platforms.
+
+Tab 5: Relationships
+
+Display all related infrastructure and organisational entities.
+
+Tab 6: History
+
+Display changes to the server record.
+
+Track:
+- Previous value.
+- New value.
+- Date.
+- User.
+- Change source.
+
+# 9. BUSINESS UNIT EXPLORER
+
+This is a core feature.
+
+Create a dedicated Business Units page.
+
+The purpose is to allow an engineer to understand the infrastructure belonging to a particular business unit.
+
+## 9.1 Business unit overview
+
+Display a searchable list of business units.
+
+Each business unit should show:
+
+- Name.
+- Organisation Short Code.
+- Organisation Abbreviated.
+- Total servers.
+- Total powered-on servers.
+- Total sub-business units.
+- Number of managers.
+- Number of support teams.
+- Number of datacenters used.
+
+## 9.2 Business unit detail
+
+When selecting a business unit, open a dedicated page.
+
+Display:
+
+- Business unit name.
+- Total server count.
+- Managers.
+- Contact information.
+- Support teams.
+- Sub-business units.
+- Products.
+- Functions.
+- Environments.
+- Datacenters.
+- Networks.
+
+Show all servers belonging to that business unit.
+
+Allow users to filter within the business unit.
+
+## 9.3 Business unit correlation
+
+Calculate and display relationships between business units and infrastructure.
+
+For example:
+
+Business Unit: Local Government
+
+May contain:
+
+- Sub-Business Unit: Housing.
+- Product: NDM.
+- Functions: Database Server, Enterprise Server, NDM Application Server.
+- Datacenter: UK1-SSE-DC1.
+- Networks: DC2-PROD-VLAN-4721, OPS-USER-ADMIN-ISOLATED, SECURE-BACKUP-NET.
+- Managers: Louver Call, Leticia Camargo.
+
+Allow users to navigate from any of these entities to the related records.
+
+Clicking a manager should display all servers associated with that manager.
+
+Clicking a network should display all servers connected to that network.
+
+Clicking a product should display all associated servers.
+
+The same navigation behaviour should be available across the application.
+
+# 10. OWNERSHIP EXPLORER
+
+Build an interactive ownership visualisation.
+
+This should help users understand the relationship between organisational structures and server infrastructure.
+
+Use a graph visualisation library such as React Flow, Cytoscape.js or D3.
+
+Preferred option: Cytoscape.js for larger relationship graphs.
+
+## 10.1 Graph structure
+
+The graph should represent:
+
+Business Unit
+    |
+    +-- Sub-Business Unit
+            |
+            +-- Product
+                    |
+                    +-- Function
+                            |
+                            +-- Server
+                                    |
+                                    +-- Hypervisor Host
+                                    |
+                                    +-- Datacenter
+                                    |
+                                    +-- Network
+                                    |
+                                    +-- Manager
+                                    |
+                                    +-- Support Team
+
+This is a conceptual relationship model, not a mandatory ownership hierarchy.
+
+Do not imply that every relationship is a parent-child relationship.
+
+For example, managers and support teams should be represented as associated entities rather than incorrectly placed in the organisational hierarchy.
+
+## 10.2 Graph interactions
+
+Users should be able to:
+
+- Click nodes.
+- Expand related nodes.
+- Collapse branches.
+- Drag nodes.
+- Zoom in and out.
+- Search nodes.
+- Highlight relationships.
+- Filter node types.
+- Reset the graph.
+- Export the graph as an image.
+
+When selecting a node, display an information panel.
+
+Example:
+
+Selecting "John Lennon" should display:
+
+- Email address.
+- Associated business units.
+- Number of managed servers.
+- Server hostnames.
+- Datacenters.
+- Networks.
+
+Selecting "BRICK" should display:
+
+- Organisation information.
+- Associated business units.
+- Server count.
+- Managers.
+- Products.
+- Infrastructure.
+
+Selecting a server should open the Server Detail page.
+
+## 10.3 Graph performance
+
+Do not render every server and relationship simultaneously.
+
+Implement progressive expansion.
+
+Start with business units.
+
+Expand into sub-business units.
+
+Expand into products.
+
+Expand into servers.
+
+Load relationships when requested.
+
+Provide graph filtering and search before rendering large datasets.
+
+# 11. INFRASTRUCTURE MAP
+
+Create a separate infrastructure visualisation.
+
+This view focuses on technical infrastructure rather than organisational ownership.
+
+Display:
+
+- Datacenters.
+- Hypervisor hosts.
+- Virtual machines.
+- Networks.
+- IP addresses.
+- Business units.
+
+Example:
+
+UK1-SSE-DC1
+    |
+    +-- br1-sse-esx-23.prd.local
+    |       |
+    |       +-- br2-VM-SSS-2
+    |       +-- br1-VM-SSS-3
+    |       +-- br2-VM-SSS-4
+    |
+    +-- br1-sse-esx-05.prd.local
+            |
+            +-- br2-VM-SSS-7
+
+The application must distinguish between the hypervisor Host field and the virtual machine identifier in the VM field.
+
+Show the following relationships:
+
+- VM to hypervisor.
+- VM to datacenter.
+- VM to network.
+- VM to business unit.
+- VM to support team.
+
+Allow users to switch between:
+
+1. Datacenter view.
+2. Hypervisor view.
+3. Network view.
+4. Business unit view.
+
+Where a network is shared by multiple servers, highlight the shared relationship.
+
+Do not assume that network names provide IP subnet information.
+
+# 12. INCIDENT TRIAGE WORKSPACE
+
+This is one of the most important operational modules.
+
+Build a workspace designed for engineers investigating security incidents.
+
+The purpose is to quickly establish the affected infrastructure, identify business ownership and prepare communications.
+
+## 12.1 Create incident
+
+Allow users to create an incident manually.
+
+Fields:
+
+- Incident reference.
+- Incident title.
+- Description.
+- Severity.
+- Date detected.
+- Detection source.
+- IOC or vulnerability identifier.
+- Status.
+- Assigned engineer.
+
+## 12.2 Add affected servers
+
+Support several methods:
+
+- Search and select servers.
+- Paste multiple hostnames.
+- Paste multiple IP addresses.
+- Upload a CSV list.
+- Select servers from the inventory table.
+
+The application should match provided identifiers against the database.
+
+Unmatched entries must be displayed separately.
+
+Never silently discard unmatched records.
+
+## 12.3 Impact analysis
+
+Once affected servers have been added, automatically calculate:
+
+- Total affected servers.
+- Unique business units.
+- Unique sub-business units.
+- Unique managers.
+- Unique email addresses.
+- Unique support teams.
+- Unique datacenters.
+- Unique hypervisors.
+- Unique networks.
+
+Display the results in a dashboard.
+
+Example:
+
+Incident: PHP Vulnerability Assessment
+
+Affected servers: 18
+
+Business units affected: 4
+
+Managers requiring notification: 6
+
+Support teams involved: 3
+
+Datacenters affected: 2
+
+Provide drill-down functionality.
+
+Clicking a business unit should show its affected servers.
+
+Clicking a manager should show the affected servers under their responsibility.
+
+## 12.4 Relationship analysis
+
+Identify additional relationships that may matter during an investigation.
+
+For example:
+
+- Multiple affected servers on the same hypervisor.
+- Multiple affected servers connected to the same network.
+- Multiple affected servers belonging to the same business unit.
+- Multiple affected servers managed by the same person.
+- Multiple affected servers within the same datacenter.
+
+These correlations should be displayed as investigation leads.
+
+Do not automatically mark related but unconfirmed servers as affected.
+
+Clearly distinguish confirmed affected assets from potentially related assets.
+
+## 12.5 Incident export
+
+Allow engineers to generate:
+
+- Affected server CSV.
+- Business unit impact report.
+- Manager contact list.
+- Support team contact list.
+- Infrastructure correlation report.
+
+Include an option to generate a single consolidated report.
+
+# 13. PATCHING & VULNERABILITY MANAGEMENT
+
+Create a dedicated Patching & Vulnerabilities module.
+
+The initial version should allow users to create and manage patching campaigns manually.
+
+Future versions may integrate with vulnerability scanners and endpoint management platforms.
+
+## 13.1 Campaign creation
+
+Fields:
+
+- Campaign name.
+- CVE identifier.
+- Patch reference.
+- Description.
+- Severity.
+- Start date.
+- Target completion date.
+- Status.
+- Assigned engineer.
+
+## 13.2 Target selection
+
+Allow users to:
+
+- Select servers manually.
+- Import affected hostnames.
+- Filter by business unit.
+- Filter by environment.
+- Filter by support team.
+- Filter by datacenter.
+- Search by product or function.
+
+## 13.3 Patch status
+
+Each server in a campaign should have an independent status:
+
+- Not assessed.
+- Affected.
+- Not affected.
+- Patch available.
+- Scheduled.
+- In progress.
+- Patched.
+- Validation required.
+- Validated.
+- Exception granted.
+
+Allow users to add notes.
+
+Track status changes and timestamps.
+
+## 13.4 Patching dashboard
+
+Display:
+
+- Total campaign targets.
+- Affected servers.
+- Patched servers.
+- Pending servers.
+- Validation required.
+- Overdue servers.
+- Completion percentage.
+
+Group progress by:
+
+- Business Unit.
+- Manager.
+- Support Team.
+- Datacenter.
+- Environment.
+
+## 13.5 Business impact
+
+Allow engineers to identify which business units have the highest number of outstanding vulnerabilities.
+
+Provide a breakdown of pending remediation by business unit.
+
+This is particularly important for coordinating patching across multiple business owners.
+
+# 14. COMMUNICATIONS CENTRE
+
+Create a dedicated Communications module.
+
+The purpose is to transform technical inventory into usable communication information.
+
+An engineer should be able to identify the correct contacts and generate a communication-ready list within seconds.
+
+## 14.1 Contact aggregation
+
+Given a selection of servers, automatically aggregate:
+
+- Manager.
+- Email.
+- Business Unit.
+- Sub-Business Unit.
+- Support Team.
+- Customer.
+
+Remove duplicate email addresses.
+
+Do not send duplicate communications to the same contact.
+
+Flag missing or invalid email addresses.
+
+## 14.2 Communication preview
+
+Display a table:
+
+| Business Unit | Manager | Email | Affected Servers | Support Team |
+|---|---|---|---:|---|
+| BRICK | John Lennon | john@example.com | 3 | UK |
+| Local Government | Louver Call | louver@example.com | 4 | UK |
+
+The values above are illustrative.
+
+Allow users to:
+
+- Copy all email addresses.
+- Copy selected email addresses.
+- Export contact list.
+- Export affected server list.
+- Generate a communication summary.
+- Open an email draft in the user's configured email client.
+
+## 14.3 Email templates
+
+Create reusable templates.
+
+Template 1: Security Incident Notification.
+
+Template 2: Vulnerability Notification.
+
+Template 3: Patching Request.
+
+Template 4: Maintenance Notification.
+
+Template 5: Ownership Confirmation.
+
+Allow users to insert dynamic variables:
+
+{{manager_name}}
+{{business_unit}}
+{{incident_reference}}
+{{incident_title}}
+{{affected_server_count}}
+{{affected_servers}}
+{{severity}}
+{{target_completion_date}}
+
+Generate a preview before allowing the user to copy or send the communication.
+
+The initial implementation should support copying the email content and opening a mailto link.
+
+Do not automatically send emails without explicit user approval.
+
+# 15. REPORTING ENGINE
+
+Create a reporting section.
+
+Allow users to generate reports based on current filters or selected records.
+
+Reports should include:
+
+1. Complete server inventory.
+2. Business unit inventory.
+3. Ownership completeness.
+4. Servers by manager.
+5. Servers by support team.
+6. Servers by datacenter.
+7. Servers by network.
+8. Servers with Secure Boot disabled.
+9. Servers missing ownership information.
+10. Incident impact.
+11. Vulnerability impact.
+12. Patching progress.
+
+Support:
+
+- CSV.
+- XLSX.
+- PDF.
+
+Allow users to export filtered results without having to export the entire database.
+
+# 16. CORRELATION ENGINE
+
+Build a reusable correlation engine that calculates relationships between all major entities.
+
+The correlation engine is a key part of the application.
+
+It should provide a consistent way to navigate from one entity to another.
+
+Examples:
+
+SERVER → MANAGER
+
+Find all servers assigned to a manager.
+
+SERVER → BUSINESS UNIT
+
+Find all servers belonging to a business unit.
+
+SERVER → NETWORK
+
+Find all servers connected to a network.
+
+SERVER → HYPERVISOR
+
+Find all virtual machines hosted on a particular hypervisor.
+
+SERVER → DATACENTER
+
+Find all servers in a particular datacenter.
+
+BUSINESS UNIT → MANAGER
+
+Find all managers associated with a business unit.
+
+BUSINESS UNIT → NETWORK
+
+Find all networks used by that business unit.
+
+MANAGER → BUSINESS UNIT
+
+Find all business units associated with a manager.
+
+SUPPORT TEAM → SERVERS
+
+Find all servers assigned to a support team.
+
+PRODUCT → SERVERS
+
+Find all servers associated with a product.
+
+The engine should support reverse lookups.
+
+For example, selecting a network should identify every associated business unit, manager and support team.
+
+## 16.1 Correlation scoring
+
+Optionally calculate relationship strength.
+
+For example:
+
+- Shared business unit.
+- Shared manager.
+- Shared hypervisor.
+- Shared datacenter.
+- Shared network.
+
+These should be presented as relationship indicators, not as proof of common ownership or security compromise.
+
+Never infer ownership purely from infrastructure proximity.
+
+# 17. USER EXPERIENCE AND INTERACTION
+
+The application should be designed around fast operational workflows.
+
+Important interactions:
+
+- Clicking a metric filters the relevant dataset.
+- Clicking a chart segment opens the corresponding records.
+- Clicking a business unit opens its detail page.
+- Clicking a manager opens their associated server list.
+- Clicking a network opens the network explorer.
+- Clicking a server opens its detail page.
+- Selecting multiple servers enables bulk actions.
+- Global search should work from every page.
+- Breadcrumb navigation should show the user's current location.
+
+Use drawers or side panels for quick previews.
+
+Avoid forcing users to navigate to another page for simple information.
+
+For example, selecting a manager in a table should allow a quick preview containing their email and associated servers.
+
+# 18. TECHNICAL ARCHITECTURE
+
+Use a modular architecture.
+
+Recommended stack:
+
+Frontend:
+- React.
+- TypeScript.
+- Vite.
+- Tailwind CSS.
+- shadcn/ui.
+- Lucide icons.
+
+Charts:
+- Recharts.
+
+Graph visualisation:
+- Cytoscape.js or React Flow.
+
+Tables:
+- TanStack Table.
+
+Backend:
+- Python FastAPI or Node.js with Express.
+
+Database:
+- PostgreSQL.
+
+ORM:
+- SQLAlchemy for Python.
+- Prisma for Node.js.
+
+Authentication:
+- Application authentication with role-based access control.
+- Support future Microsoft Entra ID integration.
+
+Deployment:
+- Docker.
+- Docker Compose.
+- Nginx reverse proxy.
+
+## 18.1 Backend API structure
+
+Create REST API endpoints.
+
+Servers:
+
+GET /api/servers
+GET /api/servers/{id}
+POST /api/servers
+PUT /api/servers/{id}
+GET /api/servers/search
+
+Business units:
+
+GET /api/business-units
+GET /api/business-units/{id}
+GET /api/business-units/{id}/servers
+GET /api/business-units/{id}/relationships
+
+Managers:
+
+GET /api/managers
+GET /api/managers/{id}
+GET /api/managers/{id}/servers
+
+Networks:
+
+GET /api/networks
+GET /api/networks/{id}
+GET /api/networks/{id}/servers
+
+Datacenters:
+
+GET /api/datacenters
+GET /api/datacenters/{id}/servers
+
+Incidents:
+
+GET /api/incidents
+POST /api/incidents
+GET /api/incidents/{id}
+PUT /api/incidents/{id}
+POST /api/incidents/{id}/servers
+GET /api/incidents/{id}/impact
+
+Patching:
+
+GET /api/patching/campaigns
+POST /api/patching/campaigns
+GET /api/patching/campaigns/{id}
+PUT /api/patching/campaigns/{id}
+
+Communications:
+
+POST /api/communications/preview
+GET /api/communications/contacts
+
+Imports:
+
+POST /api/imports/upload
+POST /api/imports/preview
+POST /api/imports/execute
+GET /api/imports/history
+
+Reports:
+
+POST /api/reports/generate
+GET /api/reports/{id}
+
+All endpoints must validate input and enforce access permissions.
+
+Use pagination, sorting and filtering at the backend rather than downloading the entire database into the browser.
+
+# 19. SECURITY AND ACCESS CONTROL
+
+Because the application contains internal infrastructure information, security must be considered from the beginning.
+
+Implement:
+
+- Authentication.
+- Role-based access control.
+- Secure password storage if local authentication is used.
+- Session management.
+- CSRF protection where applicable.
+- Input validation.
+- SQL injection protection through parameterised queries or ORM.
+- File upload validation.
+- Audit logging.
+- Rate limiting.
+- Secure HTTP headers.
+- TLS.
+- Environment-based secrets.
+- Database backups.
+
+Suggested roles:
+
+Administrator:
+Full application access.
+
+Security Engineer:
+Inventory, incidents, patching, reporting and communications.
+
+Infrastructure Engineer:
+Inventory, infrastructure and patching.
+
+Business Viewer:
+Read-only access to relevant business unit information.
+
+Auditor:
+Read-only access to inventory, history and reports.
+
+All ownership changes and administrative operations must be auditable.
+
+Do not expose the database directly to the frontend.
+
+# 20. PERFORMANCE REQUIREMENTS
+
+The application should remain responsive as the inventory grows.
+
+Requirements:
+
+- Server-side pagination.
+- Database indexes.
+- Debounced search.
+- Efficient filtering.
+- Lazy loading of graphs.
+- Lazy loading of detailed records.
+- Cached dashboard aggregates where appropriate.
+- Avoid loading all server relationships simultaneously.
+- Avoid unnecessary frontend re-rendering.
+- Use database transactions for imports and bulk operations.
+
+Suggested database indexes:
+
+servers.host
+servers.vm
+servers.dns_name
+servers.primary_ip_address
+servers.manager
+servers.email
+servers.business_unit_id
+servers.support_team
+servers.datacenter_id
+
+Use appropriate indexes on foreign keys and frequently queried relationship tables.
+
+# 21. AUDIT AND CHANGE MANAGEMENT
+
+Create a central audit log.
+
+Track:
+
+- Record created.
+- Record updated.
+- Record deleted.
+- Business unit changed.
+- Manager changed.
+- Email changed.
+- Support team changed.
+- Server imported.
+- Incident created.
+- Campaign updated.
+- Patch status changed.
+
+Each event should contain:
+
+- Event ID.
+- User.
+- Action.
+- Entity type.
+- Entity ID.
+- Previous value.
+- New value.
+- Timestamp.
+
+Avoid permanently deleting operational records unless an administrator explicitly authorises it.
+
+# 22. INITIAL DEMONSTRATION DATA
+
+Use the nine supplied mock records to populate the initial database.
+
+Preserve the original values for demonstration purposes.
+
+Create the organisational relationships automatically during import.
+
+For the demonstration, show:
+
+- Multiple servers hosted on br1-sse-esx-23.prd.local.
+- Multiple servers associated with BRICK.
+- Multiple servers associated with Local Government.
+- Multiple servers associated with the same manager.
+- Multiple servers sharing networks.
+- Servers with EFI Secure Boot enabled and disabled.
+- Different datacenter and environment values.
+
+The demonstration should clearly show why relationship analysis is useful.
+
+Do not assume that a manager is responsible for all servers belonging to the same customer unless the imported data supports that relationship.
+
+# 23. MVP IMPLEMENTATION PHASES
+
+Build the application incrementally.
+
+Do not attempt to implement every feature simultaneously.
+
+## PHASE 1 — FOUNDATION AND SERVER INVENTORY
+
+Priority: Critical.
+
+Implement:
+
+1. Project structure.
+2. Frontend application.
+3. Backend API.
+4. PostgreSQL database.
+5. Database migrations.
+6. CSV import engine.
+7. Import preview.
+8. Column mapping.
+9. Server inventory.
+10. Server detail page.
+11. Global search.
+12. Basic filters.
+13. Dashboard metrics.
+
+Acceptance criteria:
+
+- The supplied CSV imports successfully.
+- All original fields are retained.
+- Duplicate records are handled safely.
+- The dashboard calculates real database values.
+- Users can search all important fields.
+- Users can filter multiple attributes.
+- Users can open individual server records.
+- The application works with at least 10,000 records.
+
+## PHASE 2 — BUSINESS OWNERSHIP AND RELATIONSHIPS
+
+Priority: High.
+
+Implement:
+
+1. Business unit explorer.
+2. Sub-business unit explorer.
+3. Manager directory.
+4. Support team relationships.
+5. Network relationships.
+6. Datacenter relationships.
+7. Product relationships.
+8. Ownership explorer.
+9. Infrastructure map.
+10. Relationship drill-down.
+
+Acceptance criteria:
+
+- Selecting a business unit displays its associated servers.
+- Selecting a manager displays their associated servers.
+- Selecting a network displays connected servers.
+- Selecting a hypervisor displays hosted VMs.
+- Users can navigate between related entities.
+- Graphs load progressively and remain usable.
+
+## PHASE 3 — INCIDENT TRIAGE
+
+Priority: High.
+
+Implement:
+
+1. Incident creation.
+2. Affected server selection.
+3. Bulk hostname matching.
+4. IP matching.
+5. Incident impact calculations.
+6. Business unit aggregation.
+7. Manager aggregation.
+8. Support team aggregation.
+9. Infrastructure correlation.
+10. Incident reports.
+
+Acceptance criteria:
+
+- An engineer can paste 100 hostnames.
+- The application identifies matching records.
+- Unmatched records are reported.
+- The application identifies all affected business units.
+- The application generates a deduplicated contact list.
+- The engineer can export an incident impact report.
+
+## PHASE 4 — PATCHING AND VULNERABILITY MANAGEMENT
+
+Priority: High.
+
+Implement:
+
+1. Campaign creation.
+2. Server selection.
+3. Patch status tracking.
+4. Business unit progress.
+5. Overdue identification.
+6. Remediation reporting.
+7. Validation tracking.
+
+Acceptance criteria:
+
+- Users can create a campaign.
+- Users can associate multiple servers.
+- Each server has an independent status.
+- Progress is calculated dynamically.
+- Outstanding work can be grouped by business unit and support team.
+
+## PHASE 5 — COMMUNICATIONS AND REPORTING
+
+Priority: Medium.
+
+Implement:
+
+1. Contact aggregation.
+2. Email templates.
+3. Communication preview.
+4. CSV exports.
+5. XLSX exports.
+6. PDF reports.
+7. Business unit reporting.
+8. Incident communications.
+
+Acceptance criteria:
+
+- The application removes duplicate contacts.
+- Missing email addresses are highlighted.
+- Users can generate communication-ready contact lists.
+- Users can generate reports using active filters.
+- Users must explicitly approve any email-sending operation.
+
+## PHASE 6 — ADVANCED INTEGRATIONS
+
+Priority: Future.
+
+Consider integrations with:
+
+- Microsoft Entra ID.
+- Microsoft Graph.
+- Microsoft Sentinel.
+- Microsoft Defender.
+- Trend Micro Vision One.
+- VMware vCenter.
+- ServiceNow.
+- Vulnerability scanners.
+- Patch management platforms.
+
+These integrations should enrich the existing inventory rather than replace its core ownership and relationship model.
+
+# 24. FINAL DEVELOPMENT PRINCIPLES
+
+The following principles must be followed throughout development.
+
+1. The database is the source of truth for the application's imported inventory.
+
+2. Every server must be connected to its relevant organisational and infrastructure entities.
+
+3. Relationships must be navigable in both directions.
+
+4. All dashboard figures must be calculated dynamically.
+
+5. Search and filters must work across the entire dataset.
+
+6. Users must be able to move from a technical server record to the responsible business contact quickly.
+
+7. Incident triage must focus on identifying affected assets, business impact and communication requirements.
+
+8. Patching must be tracked at individual server level and aggregated at business unit level.
+
+9. Do not invent missing ownership information.
+
+10. Missing information must be visible and reportable.
+
+11. Do not assume that shared infrastructure automatically means shared business ownership.
+
+12. Keep the application modular so that future integrations can be introduced without rebuilding the core.
+
+13. Prioritise usability and operational efficiency over decorative visualisations.
+
+14. Avoid loading the entire inventory into the browser.
+
+15. Preserve data integrity during imports and synchronisation.
+
+# 25. EXPECTED FINAL PRODUCT
+
+The finished application should provide a centralised view of the relationship between:
+
+- Servers.
+- Virtual machines.
+- Hypervisors.
+- Business units.
+- Sub-business units.
+- Products.
+- Functions.
+- Managers.
+- Support teams.
+- Datacenters.
+- Networks.
+- Customers.
+
+An engineer should be able to start with any one of these entities and quickly discover the associated infrastructure and ownership information.
+
+The most important operational workflow should be:
+
+1. An incident or vulnerability is identified.
+2. The engineer searches for or imports the affected servers.
+3. The application identifies matching inventory records.
+4. The application calculates the affected business units.
+5. The application identifies managers and support teams.
+6. The application identifies shared infrastructure.
+7. The engineer reviews the impact.
+8. The engineer generates the required communication list.
+9. The engineer exports the affected-server report.
+10. The engineer tracks remediation through to completion.
+
+The application should ultimately become an infrastructure ownership intelligence platform that helps Security and Infrastructure teams understand not only what servers exist, but who is responsible for them, which business services they support and who needs to be contacted when something goes wrong.
