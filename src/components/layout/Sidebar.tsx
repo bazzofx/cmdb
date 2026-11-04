@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Network,
+  FolderArchive,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ interface SidebarProps {
     buCount: number;
     productCount?: number;
     incidentCount: number;
+    archivedIncidentCount?: number;
   };
 }
 
@@ -99,6 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'data-management',
       label: 'Data Sync',
       icon: Database,
+    },
+    {
+      id: 'archived-incidents',
+      label: 'Archive Incident',
+      icon: FolderArchive,
+      badge: metrics?.archivedIncidentCount ? String(metrics.archivedIncidentCount) : null,
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
     },
     {
       id: 'settings',

@@ -145,7 +145,7 @@ export const api = {
     return res.json();
   },
 
-  async createIncident(data: Partial<Incident>): Promise<Incident> {
+  async createIncident(data: Partial<Incident> & { raw_input?: string }): Promise<Incident> {
     const res = await fetch(`${API_BASE}/incidents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

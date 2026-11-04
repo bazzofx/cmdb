@@ -12,6 +12,7 @@ import { ProductsView } from './components/views/ProductsView.js';
 import { OwnershipExplorerView } from './components/views/OwnershipExplorerView.js';
 import { InfrastructureMapView } from './components/views/InfrastructureMapView.js';
 import { IncidentTriageView } from './components/views/IncidentTriageView.js';
+import { ArchivedIncidentsView } from './components/views/ArchivedIncidentsView.js';
 import { CommunicationsView } from './components/views/CommunicationsView.js';
 import { ReportsView } from './components/views/ReportsView.js';
 import { DataManagementView } from './components/views/DataManagementView.js';
@@ -37,6 +38,8 @@ export function App() {
   // Telemetry & metrics state
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEvent[]>([]);
+  const [activeIncidentCount, setActiveIncidentCount] = useState<number>(1);
+  const [archivedIncidentCount, setArchivedIncidentCount] = useState<number>(0);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   // Global Keyboard shortcuts: '/' or 'Cmd+K' / 'Ctrl+K' opens search
@@ -55,10 +58,17 @@ export function App() {
   const loadDashboardData = async () => {
     setLoadingMetrics(true);
     try {
-      const stats = await api.getStats();
+      const [stats, logs, incidents] = await Promise.all([
+        api.getStats(),
+        api.getAuditLogs(),
+        api.getIncidents().catch(() => []),
+      ]);
       setMetrics(stats);
-      const logs = await api.getAuditLogs();
       setRecentLogs(logs);
+      const active = (incidents || []).filter(i => i.status !== 'Closed' && i.status !== 'Archived');
+      const archived = (incidents || []).filter(i => i.status === 'Closed' || i.status === 'Archived');
+      setActiveIncidentCount(active.length);
+      setArchivedIncidentCount(archived.length);
     } catch (err) {
       console.error('Failed to load metrics:', err);
     } finally {
@@ -98,7 +108,7 @@ export function App() {
         onOpenSearch={() => setIsSearchOpen(true)}
         onNavigate={handleNavigate}
         serverCount={metrics?.total_servers || 0}
-        openIncidentsCount={1}
+        openIncidentsCount={activeIncidentCount}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -112,7 +122,8 @@ export function App() {
             serverCount: metrics?.total_servers || 0,
             buCount: metrics?.total_business_units || 0,
             productCount: metrics?.total_products || 3,
-            incidentCount: 1,
+            incidentCount: activeIncidentCount,
+            archivedIncidentCount: archivedIncidentCount,
           }}
         />
 
@@ -170,6 +181,16 @@ export function App() {
               initialServerIds={targetedServerIds}
               onSelectServer={id => setSelectedServerId(id)}
               onOpenCommunications={handleOpenCommunicationsWithServers}
+              onNavigateToArchive={() => setCurrentView('archived-incidents')}
+              onRefreshIncidents={loadDashboardData}
+            />
+          )}
+
+          {currentView === 'archived-incidents' && (
+            <ArchivedIncidentsView
+              onSelectServer={id => setSelectedServerId(id)}
+              onNavigateToActiveIncidents={() => setCurrentView('incident-triage')}
+              onRefreshIncidents={loadDashboardData}
             />
           )}
 

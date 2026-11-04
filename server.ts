@@ -1061,6 +1061,21 @@ async function startServer() {
       return res.status(400).json({ error: 'Incident title is required' });
     }
 
+    const affectedIds = new Set<string>(Array.isArray(body.affected_server_ids) ? body.affected_server_ids : []);
+    if (body.raw_input && typeof body.raw_input === 'string') {
+      const tokens = body.raw_input.split(/[\r\n,;\s]+/).map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+      tokens.forEach((token: string) => {
+        const found = db.data.servers.filter(
+          s =>
+            (s.host || '').toLowerCase() === token ||
+            (s.vm || '').toLowerCase() === token ||
+            (s.primary_ip_address || '').toLowerCase() === token ||
+            (s.dns_name || '').toLowerCase() === token
+        );
+        found.forEach(s => affectedIds.add(s.id));
+      });
+    }
+
     const newInc: Incident = {
       id: crypto.randomUUID(),
       incident_reference: body.incident_reference || `INC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1072,13 +1087,13 @@ async function startServer() {
       ioc_or_vulnerability: body.ioc_or_vulnerability || '',
       status: body.status || 'Open',
       assigned_engineer: body.assigned_engineer || 'SecOps Lead',
-      affected_server_ids: Array.isArray(body.affected_server_ids) ? body.affected_server_ids : [],
+      affected_server_ids: Array.from(affectedIds),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     db.data.incidents.unshift(newInc);
-    db.logAudit(body.user || 'SecOps', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference}`);
+    db.logAudit(body.user || 'SecOps', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference} with ${newInc.affected_server_ids.length} host(s)`);
     res.status(201).json(newInc);
   });
 
@@ -1216,7 +1231,7 @@ async function startServer() {
 
   // Remove host from incident
   api.delete('/incidents/:id/servers/:serverId', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id);
+    const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
 
     const serverId = req.params.serverId;
@@ -1226,6 +1241,7 @@ async function startServer() {
     }
     inc.updated_at = new Date().toISOString();
     db.save();
+    db.logAudit('SecOps', 'REMOVE_INCIDENT_SERVER', 'INCIDENT', inc.id, null, null, `Removed server ${serverId} from ${inc.incident_reference}`);
 
     res.json({ success: true, remaining: inc.affected_server_ids.length });
   });

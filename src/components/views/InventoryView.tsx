@@ -267,7 +267,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   return (
     <div className="space-y-4 max-w-full">
       {/* Table Action Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-xl soc-glass-panel">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-xl soc-glass-panel relative ${showFilterDropdown || showColumnPicker ? 'z-50' : 'z-20'}`}>
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
             <Server className="w-5 h-5" />
@@ -297,23 +297,25 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </div>
 
           {/* Filter Dropdown Button */}
-          <div className="relative">
+          <div className={`relative ${showFilterDropdown ? 'z-50' : 'z-30'}`}>
             <button
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
-                activeFilterKeys.length > 0
-                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+              className={`relative z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer bg-[#14161B] hover:bg-[#1C1F26] text-white shadow-xl ${
+                showFilterDropdown
+                  ? 'border-blue-400 ring-2 ring-blue-500/50 bg-[#1C1F26]'
+                  : activeFilterKeys.length > 0
+                  ? 'border-blue-400/60 ring-1 ring-blue-500/40'
+                  : 'border-white/20'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Filters ({activeFilterKeys.length})</span>
-              <ChevronDown className="w-3 h-3 ml-0.5" />
+              <Filter className="w-3.5 h-3.5 text-white" />
+              <span className="text-white font-medium">Filters ({activeFilterKeys.length})</span>
+              <ChevronDown className={`w-3 h-3 ml-0.5 text-white transition-transform duration-200 ${showFilterDropdown ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Filter Flyout */}
             {showFilterDropdown && (
-              <div className="absolute right-0 top-10 w-80 bg-[#111827] border border-white/15 rounded-xl shadow-2xl p-4 z-40 space-y-3">
+              <div className="absolute right-0 top-full mt-2 w-80 bg-[#111827] border border-white/20 rounded-xl shadow-2xl p-4 z-50 space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-white/10">
                   <span className="text-xs font-mono font-semibold uppercase text-slate-300">
                     Infrastructure Filters
@@ -446,7 +448,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <span>Columns</span>
             </button>
             {showColumnPicker && (
-              <div className="absolute right-0 top-10 w-56 bg-[#111827] border border-white/15 rounded-xl shadow-2xl p-3 z-40 space-y-2">
+              <div className="absolute right-0 top-full mt-2 w-56 bg-[#111827] border border-white/15 rounded-xl shadow-2xl p-3 z-40 space-y-2">
                 <div className="flex items-center justify-between pb-1 border-b border-white/10 text-xs font-mono font-semibold uppercase text-slate-300">
                   <span>Toggle Columns</span>
                   <button onClick={() => setShowColumnPicker(false)}>
@@ -559,7 +561,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       )}
 
       {/* Main Inventory Table (Section 7.1) */}
-      <div className="rounded-xl soc-glass-panel overflow-hidden border border-white/10">
+      <div className="relative z-10 rounded-xl soc-glass-panel overflow-hidden border border-white/10">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>

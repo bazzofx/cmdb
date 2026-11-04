@@ -42,6 +42,10 @@ import {
   FolderArchive,
   Archive,
   RotateCcw,
+  ChevronDown,
+  Upload,
+  FileUp,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import type {
@@ -52,25 +56,35 @@ import type {
   ServerPatchingStatus,
   IncidentHostDetail,
 } from '../../types/index.js';
+import {
+  generateMarkdownReport,
+  generateWordDocx,
+  generatePdfReport,
+  type ReportData,
+} from '../../services/incidentReportGenerator.js';
 
 interface IncidentTriageViewProps {
   onSelectServer: (id: string) => void;
   onOpenCommunications: (serverIds: string[]) => void;
   initialServerIds?: string[];
+  onNavigateToArchive?: () => void;
+  onRefreshIncidents?: () => void;
 }
 
 export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   onSelectServer,
   onOpenCommunications,
   initialServerIds,
+  onNavigateToArchive,
+  onRefreshIncidents,
 }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [impact, setImpact] = useState<IncidentImpact | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // View Display Mode: 'unified' (Dashboard + Table), 'dashboard_only', 'table_only'
-  const [viewMode, setViewMode] = useState<'unified' | 'dashboard_only' | 'table_only'>('unified');
+  // View Display Mode: 'dashboard' (Metrics Dashboard) or 'table' (Action Table)
+  const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
 
   // Per-host triage details map
   const [hostDetails, setHostDetails] = useState<Record<string, IncidentHostDetail>>({});
@@ -92,6 +106,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   const [newSeverity, setNewSeverity] = useState<'Critical' | 'High' | 'Medium' | 'Low'>('High');
   const [newIoc, setNewIoc] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newHostnamesInput, setNewHostnamesInput] = useState('');
 
   // Bulk add servers modal
   const [showAddServersModal, setShowAddServersModal] = useState(false);
@@ -101,11 +116,21 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     unmatched: string[];
   } | null>(null);
 
+  // Host click management & removal states
+  const [hostActionModal, setHostActionModal] = useState<ServerRecord | null>(null);
+  const [removingServer, setRemovingServer] = useState<ServerRecord | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
   // Close & Archive incident modal
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closingIncident, setClosingIncident] = useState(false);
   const [closureNotes, setClosureNotes] = useState('');
   const [closingEngineer, setClosingEngineer] = useState('SecOps Lead');
+
+  // Report export states
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [archiveNotification, setArchiveNotification] = useState<string | null>(null);
 
   // Interactive filters
   const [filterBu, setFilterBu] = useState<string | null>(null);
@@ -117,6 +142,11 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   const [filterCommunication, setFilterCommunication] = useState<'communicated' | 'pending' | null>(null);
   const [filterProduct, setFilterProduct] = useState<string | null>(null);
   const [searchTable, setSearchTable] = useState('');
+
+  // Active Incidents only (Closed & Archived are removed and moved to Archive view)
+  const activeIncidents = useMemo(() => {
+    return incidents.filter(i => i.status !== 'Closed' && i.status !== 'Archived');
+  }, [incidents]);
 
   const triageStatuses: TriageHostStatus[] = [
     'To be contacted',
@@ -146,8 +176,9 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     try {
       const data = await api.getIncidents();
       setIncidents(data);
-      if (data.length > 0 && !selectedIncidentId) {
-        handleSelectIncident(data[0].id, data[0]);
+      const active = data.filter(i => i.status !== 'Closed' && i.status !== 'Archived');
+      if (active.length > 0 && !selectedIncidentId) {
+        handleSelectIncident(active[0].id, active[0]);
       }
     } catch (err) {
       console.error('Failed to load incidents:', err);
@@ -358,6 +389,22 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'create' | 'bulk') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = event => {
+      const content = String(event.target?.result || '');
+      if (target === 'create') {
+        setNewHostnamesInput(prev => (prev ? prev + '\n' + content : content));
+      } else {
+        setBulkInput(prev => (prev ? prev + '\n' + content : content));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleCreateIncident = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
@@ -371,12 +418,14 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
         description: newDesc,
         status: 'Investigating',
         affected_server_ids: initialServerIds || [],
+        raw_input: newHostnamesInput.trim() || undefined,
       });
 
       setShowCreateModal(false);
       setNewTitle('');
       setNewDesc('');
       setNewIoc('');
+      setNewHostnamesInput('');
       await loadIncidents();
       handleSelectIncident(created.id, created);
     } catch (err) {
@@ -400,8 +449,39 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       const updatedImpact = await api.getIncidentImpact(selectedIncidentId);
       setImpact(updatedImpact);
       setBulkInput('');
+      await loadIncidents();
     } catch (err) {
       console.error('Failed to add servers:', err);
+    }
+  };
+
+  const handleRemoveServerFromIncident = async (serverId: string) => {
+    if (!selectedIncidentId) return;
+    setIsRemoving(true);
+    try {
+      await api.removeIncidentServer(selectedIncidentId, serverId);
+      setImpact(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          total_affected_servers: Math.max(0, prev.total_affected_servers - 1),
+          affected_servers: prev.affected_servers.filter(s => s.id !== serverId),
+        };
+      });
+      setHostDetails(prev => {
+        const copy = { ...prev };
+        delete copy[serverId];
+        return copy;
+      });
+      const updatedImpact = await api.getIncidentImpact(selectedIncidentId);
+      setImpact(updatedImpact);
+      await loadIncidents();
+      setHostActionModal(null);
+      setRemovingServer(null);
+    } catch (err) {
+      console.error('Failed to remove server from incident:', err);
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -411,8 +491,9 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     setClosingIncident(true);
     try {
       const now = new Date().toISOString();
+      const archivedRef = selectedIncident.incident_reference;
       await api.updateIncident(selectedIncident.id, {
-        status: 'Closed',
+        status: 'Archived',
         closed_at: now,
         closed_by: closingEngineer || 'SecOps Lead',
         description: closureNotes
@@ -420,24 +501,120 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
           : selectedIncident.description,
       });
 
-      setIncidents(prev =>
-        prev.map(i =>
-          i.id === selectedIncident.id
-            ? {
-                ...i,
-                status: 'Closed',
-                closed_at: now,
-                closed_by: closingEngineer || 'SecOps Lead',
-              }
-            : i
-        )
+      const updatedList = incidents.map(i =>
+        i.id === selectedIncident.id
+          ? {
+              ...i,
+              status: 'Archived' as const,
+              closed_at: now,
+              closed_by: closingEngineer || 'SecOps Lead',
+            }
+          : i
       );
+      setIncidents(updatedList);
       setShowCloseModal(false);
       setClosureNotes('');
+      setArchiveNotification(`Incident ${archivedRef} has been resolved, closed, and moved to the Archive Incident section in navigation.`);
+
+      // Select next available active incident
+      const remainingActive = updatedList.filter(i => i.status !== 'Closed' && i.status !== 'Archived');
+      if (remainingActive.length > 0) {
+        handleSelectIncident(remainingActive[0].id, remainingActive[0]);
+      } else {
+        setSelectedIncidentId(null);
+        setImpact(null);
+      }
+
+      if (onRefreshIncidents) onRefreshIncidents();
     } catch (err) {
       console.error('Failed to close and archive incident:', err);
     } finally {
       setClosingIncident(false);
+    }
+  };
+
+  // Report Export Handlers (PDF, Word .docx, Markdown .md)
+  const getReportPayload = (): ReportData | null => {
+    if (!selectedIncident) return null;
+    return {
+      incident: selectedIncident,
+      impact,
+      affectedList,
+      hostDetails,
+      metrics: {
+        totalServers,
+        patchedCount: (triageStats['Patched'] || 0) + (triageStats['Patch'] || 0),
+        patchedPct: totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0,
+        communicatedCount: commStats.communicatedCount,
+        communicatedPct: commStats.pct,
+        hasNotesCount: notesStats.hasNotesCount,
+        hasNotesPct: notesStats.pct,
+        isolatedCount: triageStats['Isolated'] || 0,
+      },
+      buBreakdown: buBreakdown.map(b => ({
+        name: b.name,
+        total: b.total,
+        patched: b.patched,
+        communicated: b.communicated,
+      })),
+      productBreakdown,
+      managerAccountability: managerAccountability.map(m => ({
+        name: m.name,
+        email: m.email,
+        total: m.total,
+        patched: m.patched,
+      })),
+    };
+  };
+
+  const handleExportMarkdown = () => {
+    const payload = getReportPayload();
+    if (!payload) return;
+    const md = generateMarkdownReport(payload);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `incident_${payload.incident.incident_reference}_report.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setExportDropdownOpen(false);
+  };
+
+  const handleExportWord = async () => {
+    const payload = getReportPayload();
+    if (!payload) return;
+    setIsExporting(true);
+    try {
+      const blob = await generateWordDocx(payload);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `incident_${payload.incident.incident_reference}_report.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Word export failed:', err);
+    } finally {
+      setIsExporting(false);
+      setExportDropdownOpen(false);
+    }
+  };
+
+  const handleExportPdf = () => {
+    const payload = getReportPayload();
+    if (!payload) return;
+    setIsExporting(true);
+    try {
+      const doc = generatePdfReport(payload);
+      doc.save(`incident_${payload.incident.incident_reference}_report.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsExporting(false);
+      setExportDropdownOpen(false);
     }
   };
 
@@ -458,6 +635,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
             : i
         )
       );
+      if (onRefreshIncidents) onRefreshIncidents();
     } catch (err) {
       console.error('Failed to reopen incident:', err);
     }
@@ -810,40 +988,31 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
           </div>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center gap-1.5 p-1 rounded-lg bg-white/5 border border-white/10 text-xs font-mono">
+        {/* View Mode Switcher: Minimal Icon-Only Mode */}
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-white/5 border border-white/10 text-xs font-mono">
           <button
-            onClick={() => setViewMode('unified')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-              viewMode === 'unified'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={() => setViewMode('dashboard')}
+            title="Metrics Dashboard"
+            aria-label="Metrics Dashboard"
+            className={`p-2 rounded-md transition-all cursor-pointer ${
+              viewMode === 'dashboard'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Unified View</span>
+            <BarChart3 className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setViewMode('dashboard_only')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-              viewMode === 'dashboard_only'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={() => setViewMode('table')}
+            title="Action Table"
+            aria-label="Action Table"
+            className={`p-2 rounded-md transition-all cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Metrics Dashboard</span>
-          </button>
-          <button
-            onClick={() => setViewMode('table_only')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-              viewMode === 'table_only'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ListFilter className="w-3.5 h-3.5" />
-            <span>Action Table</span>
+            <ListFilter className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -851,65 +1020,113 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* Incident Switcher Ribbon & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
-          {incidents.map(inc => {
-            const isClosed = inc.status === 'Closed' || inc.status === 'Archived';
-            return (
-              <button
-                key={inc.id}
-                onClick={() => handleSelectIncident(inc.id, inc)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono transition-all shrink-0 cursor-pointer ${
-                  selectedIncidentId === inc.id
-                    ? isClosed
-                      ? 'bg-slate-800/90 border-emerald-500/50 text-emerald-200 shadow-sm'
-                      : 'bg-rose-950/30 border-rose-500/50 text-rose-200 shadow-sm'
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isClosed ? 'bg-emerald-400' : inc.severity === 'Critical' ? 'bg-rose-500' : 'bg-amber-400'
+          {activeIncidents.length === 0 ? (
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-400 py-1">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>All incidents have been archived and closed.</span>
+            </div>
+          ) : (
+            activeIncidents.map(inc => {
+              return (
+                <button
+                  key={inc.id}
+                  onClick={() => handleSelectIncident(inc.id, inc)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono transition-all shrink-0 cursor-pointer ${
+                    selectedIncidentId === inc.id
+                      ? 'bg-rose-950/30 border-rose-500/50 text-rose-200 shadow-sm'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
                   }`}
-                />
-                <span className="font-semibold text-white">{inc.incident_reference}</span>
-                {isClosed && (
-                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 font-bold uppercase">
-                    ARCHIVED
-                  </span>
-                )}
-                <span className="text-[11px] truncate max-w-[170px]">{inc.incident_title}</span>
-              </button>
-            );
-          })}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      inc.severity === 'Critical' ? 'bg-rose-500' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span className="font-semibold text-white">{inc.incident_reference}</span>
+                  <span className="text-[11px] truncate max-w-[170px]">{inc.incident_title}</span>
+                </button>
+              );
+            })
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           {selectedIncident && (
             <>
-              {selectedIncident.status === 'Closed' || selectedIncident.status === 'Archived' ? (
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-mono font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>ARCHIVED & CLOSED</span>
-                  </span>
-                  <button
-                    onClick={handleReopenIncident}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 text-xs font-mono cursor-pointer transition-colors"
-                    title="Reopen this incident for investigation"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Reopen</span>
-                  </button>
-                </div>
-              ) : (
+              {/* Upload / Add Hosts Button */}
+              <button
+                onClick={() => {
+                  setAddResults(null);
+                  setShowAddServersModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-mono font-medium transition-all cursor-pointer shadow-sm"
+                title="Upload or paste new hostnames into this incident"
+              >
+                <Upload className="w-3.5 h-3.5 text-blue-400" />
+                <span>Upload Hosts</span>
+              </button>
+
+              {/* Report Export Dropdown Button (PDF, Word, Markdown) */}
+              <div className="relative">
                 <button
-                  onClick={() => setShowCloseModal(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/50 text-xs font-mono font-semibold hover:border-emerald-400 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
-                  title="Close and archive active incident"
+                  onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-mono font-medium transition-all cursor-pointer shadow-sm"
+                  title="Generate incident report in PDF, Word, or Markdown format"
                 >
-                  <FolderArchive className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Close & Archive Incident</span>
+                  <FileText className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{isExporting ? 'Generating...' : 'Create Report'}</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
                 </button>
-              )}
+
+                {exportDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0d1424] border border-blue-500/30 shadow-2xl py-1.5 z-50 text-xs font-mono backdrop-blur-xl">
+                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-slate-400 border-b border-white/10 font-bold">
+                      Export Incident Report
+                    </div>
+                    <button
+                      onClick={handleExportPdf}
+                      className="w-full text-left px-3 py-2 hover:bg-white/10 text-slate-200 hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-white">PDF Document (.pdf)</div>
+                        <div className="text-[10px] text-slate-400">Formal printable incident report</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleExportWord}
+                      className="w-full text-left px-3 py-2 hover:bg-white/10 text-slate-200 hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-white">Word Document (.docx)</div>
+                        <div className="text-[10px] text-slate-400">Standard DOCX executive report</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleExportMarkdown}
+                      className="w-full text-left px-3 py-2 hover:bg-white/10 text-slate-200 hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-white">Markdown Report (.md)</div>
+                        <div className="text-[10px] text-slate-400">Plain text / GitHub / SOC wiki</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Close & Archive Active Incident */}
+              <button
+                onClick={() => setShowCloseModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/50 text-xs font-mono font-semibold hover:border-emerald-400 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
+                title="Close and archive active incident to the Archive Incident section"
+              >
+                <FolderArchive className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Close & Archive</span>
+              </button>
             </>
           )}
 
@@ -923,124 +1140,279 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
         </div>
       </div>
 
+      {/* Archive Success Notification Banner */}
+      {archiveNotification && (
+        <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs flex items-center justify-between gap-3 font-mono shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{archiveNotification}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onNavigateToArchive && (
+              <button
+                onClick={onNavigateToArchive}
+                className="px-3 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5"
+              >
+                <FolderArchive className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Open Archive Incident →</span>
+              </button>
+            )}
+            <button
+              onClick={() => setArchiveNotification(null)}
+              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State when no active incidents exist */}
+      {!selectedIncident && (
+        <div className="p-12 text-center rounded-2xl bg-[#0d1424]/80 border border-white/10 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+            <FolderArchive className="w-8 h-8" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-base font-bold text-white">No Active Incidents in Triage</h3>
+            <p className="text-xs text-slate-400">
+              All incidents have been successfully triaged, remediated, or moved to Archive. You can view past incidents and export historical reports in the Archive Incident section under Data Sync.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {onNavigateToArchive && (
+              <button
+                onClick={onNavigateToArchive}
+                className="px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-2"
+              >
+                <FolderArchive className="w-4 h-4 text-emerald-400" />
+                <span>Open Archive Incident</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-medium transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-rose-600/30"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Incident</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectedIncident && (
         <div className="space-y-6">
           {/* ============================================================== */}
           {/* OVERVIEW DASHBOARD PURELY BASED ON METRICS                     */}
           {/* (Rendered in 'unified' and 'dashboard_only' modes)             */}
           {/* ============================================================== */}
-          {(viewMode === 'unified' || viewMode === 'dashboard_only') && (
+          {viewMode === 'dashboard' && (
             <div className="space-y-5">
-              {/* 1. TOP EXECUTIVE PULSE BAR (6 KEY METRIC TILES) */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {/* 1. Impacted Assets */}
-                <div
-                  onClick={() => clearAllFilters()}
-                  className="p-3.5 rounded-xl soc-glass-panel border border-white/10 hover:border-blue-400/40 cursor-pointer transition-all space-y-1"
-                >
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider">Impacted Assets</span>
-                    <Server className="w-4 h-4 text-rose-400" />
-                  </div>
-                  <div className="text-2xl font-bold font-mono text-white">{totalServers}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">100% In Blast Radius</div>
-                </div>
-
-                {/* 2. Patched Systems */}
+              {/* 1. COMPACT INCIDENT SUMMARY & REMEDIATION GAUGE */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+                {/* Patched Systems Gauge Card (The single remaining card with a gauge chart) */}
                 <div
                   onClick={() => setFilterStatus(filterStatus === 'Patched' ? null : 'Patched')}
-                  className={`p-3.5 rounded-xl soc-glass-panel border cursor-pointer transition-all space-y-1 ${
-                    filterStatus === 'Patched' ? 'border-emerald-400 bg-emerald-950/30' : 'border-emerald-500/30 hover:border-emerald-400/50 bg-emerald-950/10'
+                  className={`lg:col-span-4 p-4 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between ${
+                    filterStatus === 'Patched'
+                      ? 'border-emerald-400 bg-emerald-950/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                      : 'border-emerald-500/30 bg-[#0d1424]/90 hover:border-emerald-400/50 hover:bg-[#101b30]/90 shadow-lg'
                   }`}
+                  title="Click to filter by patched servers"
                 >
-                  <div className="flex items-center justify-between text-emerald-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Patched Systems</span>
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold font-mono text-emerald-400">
-                      {(triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </span>
+                      <span className="text-xs font-bold text-white tracking-wide">Patched Systems</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
+                      {totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0}% COMPLETE
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      ({totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0}%)
+                  </div>
+
+                  {/* Gauge Chart SVG */}
+                  <div className="py-2 flex items-center justify-center">
+                    <div className="relative w-36 h-28 flex items-center justify-center">
+                      <svg className="w-full h-full" viewBox="0 0 120 75">
+                        {/* Semi-circular gauge track (180-degree arch) */}
+                        <path
+                          d="M 15 65 A 45 45 0 0 1 105 65"
+                          fill="none"
+                          stroke="#1e293b"
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                        />
+                        {/* Gauge fill arc */}
+                        <path
+                          d="M 15 65 A 45 45 0 0 1 105 65"
+                          fill="none"
+                          stroke="url(#gauge-patch-grad)"
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                          strokeDasharray={141.37}
+                          strokeDashoffset={
+                            141.37 -
+                            (totalServers > 0
+                              ? (((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 141.37
+                              : 0)
+                          }
+                          className="transition-all duration-700 ease-out"
+                        />
+                        <defs>
+                          <linearGradient id="gauge-patch-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#059669" />
+                            <stop offset="50%" stopColor="#10B981" />
+                            <stop offset="100%" stopColor="#34D399" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      {/* Gauge Center readout */}
+                      <div className="absolute inset-0 top-3 flex flex-col items-center justify-center text-center">
+                        <span className="text-2xl font-black font-mono text-white tracking-tight">
+                          {(triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)}
+                          <span className="text-xs text-slate-400 font-normal ml-1">/ {totalServers}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400 font-semibold">
+                          Servers Patched
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-white/5 text-slate-400">
+                    <span>
+                      {totalServers - ((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0))} pending remediation
+                    </span>
+                    <span className="text-emerald-400 hover:underline">
+                      {filterStatus === 'Patched' ? 'Show all' : 'Filter table →'}
                     </span>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                </div>
+
+                {/* Simpler Text Statistics Panel (Replacing the other 5 cards with smaller, clean text view) */}
+                <div className="lg:col-span-8 p-4 rounded-xl bg-[#0d1424]/70 border border-slate-800/80 backdrop-blur-md flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-200 tracking-wide font-sans">
+                        Operational Incident Statistics
+                      </span>
+                      {hasActiveFilters && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                          FILTERED VIEW
+                        </span>
+                      )}
+                    </div>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={() => clearAllFilters()}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Reset Filters</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Clean text statistics in 2 structured rows */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs">
+                    {/* Stat 1: Impacted Assets */}
                     <div
-                      className="bg-emerald-400 h-full rounded-full transition-all"
-                      style={{
-                        width: `${totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
+                      onClick={() => clearAllFilters()}
+                      className="flex items-baseline justify-between py-1 border-b border-white/5 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-slate-200">Impacted Assets in Scope:</span>
+                      <span className="font-mono font-bold text-white">
+                        {totalServers} <span className="text-[11px] font-normal text-slate-400">servers (100% blast radius)</span>
+                      </span>
+                    </div>
 
-                {/* 3. Communication Outreach */}
-                <div
-                  onClick={() => setFilterCommunication(filterCommunication === 'communicated' ? null : 'communicated')}
-                  className={`p-3.5 rounded-xl soc-glass-panel border cursor-pointer transition-all space-y-1 ${
-                    filterCommunication === 'communicated' ? 'border-blue-400 bg-blue-950/30' : 'border-blue-500/30 hover:border-blue-400/50 bg-blue-950/10'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-blue-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Communicated</span>
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold font-mono text-blue-300">{commStats.pct}%</span>
-                    <span className="text-xs font-mono text-slate-400">({commStats.communicatedCount}/{totalServers})</span>
-                  </div>
-                  <div className="text-[10px] text-amber-300 font-mono">
-                    {commStats.pendingCommCount} Pending Outreach
-                  </div>
-                </div>
+                    {/* Stat 2: Communication Outreach */}
+                    <div
+                      onClick={() => setFilterCommunication(filterCommunication === 'communicated' ? null : 'communicated')}
+                      className="flex items-baseline justify-between py-1 border-b border-white/5 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-blue-300">Stakeholder Outreach:</span>
+                      <span className="font-mono font-bold text-blue-300">
+                        {commStats.communicatedCount} of {totalServers} <span className="text-[11px] font-normal text-slate-400">({commStats.pct}%)</span>
+                        {commStats.pendingCommCount > 0 && (
+                          <span className="text-amber-400 ml-1 text-[10px]">· {commStats.pendingCommCount} pending</span>
+                        )}
+                      </span>
+                    </div>
 
-                {/* 4. Notes Coverage */}
-                <div
-                  onClick={() => setFilterNotes(filterNotes === 'has_notes' ? null : 'has_notes')}
-                  className={`p-3.5 rounded-xl soc-glass-panel border cursor-pointer transition-all space-y-1 ${
-                    filterNotes === 'has_notes' ? 'border-amber-400 bg-amber-950/30' : 'border-amber-500/30 hover:border-amber-400/50 bg-amber-950/10'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-amber-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Notes & Tickets</span>
-                    <StickyNote className="w-4 h-4" />
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold font-mono text-amber-300">{notesStats.pct}%</span>
-                    <span className="text-xs font-mono text-slate-400">({notesStats.hasNotesCount}/{totalServers})</span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    {notesStats.missingNotesCount} Missing Notes
-                  </div>
-                </div>
+                    {/* Stat 3: Notes & Tickets */}
+                    <div
+                      onClick={() => setFilterNotes(filterNotes === 'has_notes' ? null : 'has_notes')}
+                      className="flex items-baseline justify-between py-1 border-b border-white/5 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-amber-300">Notes & Ticket Tracking:</span>
+                      <span className="font-mono font-bold text-amber-300">
+                        {notesStats.hasNotesCount} of {totalServers} <span className="text-[11px] font-normal text-slate-400">({notesStats.pct}%)</span>
+                        {notesStats.missingNotesCount > 0 && (
+                          <span className="text-slate-400 ml-1 text-[10px]">· {notesStats.missingNotesCount} missing notes</span>
+                        )}
+                      </span>
+                    </div>
 
-                {/* 5. Isolated Containment */}
-                <div
-                  onClick={() => setFilterStatus(filterStatus === 'Isolated' ? null : 'Isolated')}
-                  className={`p-3.5 rounded-xl soc-glass-panel border cursor-pointer transition-all space-y-1 ${
-                    filterStatus === 'Isolated' ? 'border-rose-400 bg-rose-950/30' : 'border-rose-500/30 hover:border-rose-400/50 bg-rose-950/10'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-rose-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Isolated Hosts</span>
-                    <ShieldAlert className="w-4 h-4" />
-                  </div>
-                  <div className="text-2xl font-bold font-mono text-rose-300">{triageStats['Isolated']}</div>
-                  <div className="text-[10px] text-rose-400 font-mono">Quarantine Active</div>
-                </div>
+                    {/* Stat 4: Containment & Isolation */}
+                    <div
+                      onClick={() => setFilterStatus(filterStatus === 'Isolated' ? null : 'Isolated')}
+                      className="flex items-baseline justify-between py-1 border-b border-white/5 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-rose-300">Quarantine & Containment:</span>
+                      <span className="font-mono font-bold text-rose-300">
+                        {triageStats['Isolated'] || 0} isolated <span className="text-[11px] font-normal text-slate-400">· {triageStats['Patching'] || 0} patching active</span>
+                      </span>
+                    </div>
 
-                {/* 6. Linked Business Units */}
-                <div
-                  onClick={() => clearAllFilters()}
-                  className="p-3.5 rounded-xl soc-glass-panel border border-purple-500/30 bg-purple-950/10 hover:border-purple-400/50 cursor-pointer transition-all space-y-1"
-                >
-                  <div className="flex items-center justify-between text-purple-400">
-                    <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Linked BUs</span>
-                    <Building2 className="w-4 h-4" />
+                    {/* Stat 5: Organizational Blast Radius */}
+                    <div
+                      onClick={() => clearAllFilters()}
+                      className="flex items-baseline justify-between py-1 border-b border-white/5 sm:border-b-0 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-purple-300">Impacted Business Units:</span>
+                      <span className="font-mono font-bold text-purple-300">
+                        {buBreakdown.length} BUs <span className="text-[11px] font-normal text-slate-400">({buBreakdown.map(b => b.name).slice(0, 2).join(', ')}{buBreakdown.length > 2 ? '...' : ''})</span>
+                      </span>
+                    </div>
+
+                    {/* Stat 6: Workload Products & Managers */}
+                    <div
+                      onClick={() => clearAllFilters()}
+                      className="flex items-baseline justify-between py-1 hover:text-white cursor-pointer group"
+                    >
+                      <span className="text-slate-400 group-hover:text-cyan-300">Products & Stakeholders:</span>
+                      <span className="font-mono font-bold text-cyan-300">
+                        {productBreakdown.length} Products <span className="text-[11px] font-normal text-slate-400">· {managerAccountability.length} Managers involved</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold font-mono text-purple-300">{buBreakdown.length}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">Across Organisation</div>
+
+                  {/* Quick Triage Status Filter Pills (Simple plain text row with interactive filters) */}
+                  <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                    <span className="text-slate-500 uppercase text-[10px] tracking-wider mr-1">Quick Filter:</span>
+                    {(['Patching', 'To be contacted', 'Contacted', 'Isolated', 'Not Affected'] as TriageHostStatus[]).map(status => {
+                      const count = triageStats[status] || 0;
+                      if (count === 0 && status !== 'To be contacted') return null;
+                      const isActive = filterStatus === status;
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => setFilterStatus(isActive ? null : status)}
+                          className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-blue-600/30 border-blue-400 text-blue-200 font-semibold'
+                              : 'bg-white/[0.03] border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
+                          }`}
+                        >
+                          <span>{status}: </span>
+                          <span className="font-bold text-white">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -1280,7 +1652,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
           {/* CENTRAL AFFECTED SERVERS & ACTION TABLE                        */}
           {/* (Rendered in 'unified' and 'table_only' modes)                 */}
           {/* ============================================================== */}
-          {(viewMode === 'unified' || viewMode === 'table_only') && (
+          {viewMode === 'table' && (
             <div className="rounded-xl soc-glass-panel border border-white/15 overflow-hidden space-y-4 p-5 shadow-2xl bg-[#0F172A]/80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
                 <div className="space-y-0.5">
@@ -1316,6 +1688,18 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                       Clear Filters
                     </button>
                   )}
+
+                  <button
+                    onClick={() => {
+                      setAddResults(null);
+                      setShowAddServersModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-mono cursor-pointer transition-colors"
+                    title="Upload or paste hostnames into incident"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Hosts</span>
+                  </button>
 
                   <button
                     onClick={exportAffectedCsv}
@@ -1394,15 +1778,33 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                           >
                             {/* Host */}
                             <td
-                              className={`p-3 font-medium cursor-pointer ${
-                                isPatched ? 'text-emerald-200 hover:text-white font-semibold' : 'text-white hover:text-blue-300'
+                              className={`p-3 font-medium ${
+                                isPatched ? 'text-emerald-200' : 'text-white'
                               }`}
-                              onClick={() => onSelectServer(s.id)}
-                              title="Click to view full server profile"
                             >
-                              <div className="flex items-center gap-1.5">
-                                {isPatched && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                                <span>{s.host}</span>
+                              <div className="flex items-center justify-between gap-2 group">
+                                <div
+                                  onClick={() => setHostActionModal(s)}
+                                  className="flex items-center gap-1.5 cursor-pointer hover:text-blue-300 transition-colors"
+                                  title="Click hostname for options: View server profile or Remove from incident"
+                                >
+                                  {isPatched && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                                  <span className="underline decoration-dotted underline-offset-2 decoration-slate-500 hover:decoration-blue-400 font-mono font-bold">
+                                    {s.host}
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRemovingServer(s);
+                                  }}
+                                  className="opacity-40 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 rounded transition-all cursor-pointer"
+                                  title={`Remove ${s.host} from incident triage`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </td>
 
@@ -1809,11 +2211,40 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 <textarea
                   value={newDesc}
                   onChange={e => setNewDesc(e.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="Incident overview, affected subsystems, and technical notes..."
                   className="w-full p-2 rounded bg-white/5 border border-white/10 text-white"
                 />
               </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-mono text-[11px] block">
+                    Impacted Hostnames / VMs / IPs (Optional)
+                  </label>
+                  <label className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer font-mono flex items-center gap-1">
+                    <FileUp className="w-3 h-3" />
+                    <span>Upload File</span>
+                    <input
+                      type="file"
+                      accept=".txt,.csv"
+                      onChange={e => handleFileUpload(e, 'create')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <textarea
+                  value={newHostnamesInput}
+                  onChange={e => setNewHostnamesInput(e.target.value)}
+                  rows={4}
+                  placeholder={`Paste hostnames, IPs or VM IDs (separated by newlines, commas, or spaces)\ne.g.:\nbr1-sse-esx-23.prd.local\n10.200.68.91\napp-server-04`}
+                  className="w-full p-2.5 rounded bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-rose-400"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  * Hostnames are correlated against inventory. Duplicates are removed automatically.
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
@@ -1834,18 +2265,45 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
         </div>
       )}
 
-      {/* ADD AFFECTED SERVERS MODAL */}
+      {/* ADD / UPLOAD AFFECTED SERVERS MODAL */}
       {showAddServersModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
           <div className="w-full max-w-xl bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Server className="w-5 h-5 text-blue-400" /> Batch Match Affected Infrastructure
-            </h2>
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-400" /> Upload / Add Data to Incident
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddServersModal(false);
+                  setAddResults(null);
+                }}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-xs text-slate-400">
-              Paste a list of hostnames, VM IDs, or IP addresses (separated by commas, newlines, or spaces). The system will correlate against inventory.
+              Paste hostnames, VM IDs, or IP addresses (or upload a .csv/.txt file). All duplicates are filtered out automatically against existing incident assets.
             </p>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-300 font-mono text-[11px] block">
+                  Paste Hostnames, VMs, or IPs
+                </label>
+                <label className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer font-mono flex items-center gap-1">
+                  <FileUp className="w-3.5 h-3.5" />
+                  <span>Upload .txt / .csv file</span>
+                  <input
+                    type="file"
+                    accept=".txt,.csv"
+                    onChange={e => handleFileUpload(e, 'bulk')}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
               <textarea
                 value={bulkInput}
                 onChange={e => setBulkInput(e.target.value)}
@@ -1857,7 +2315,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
               {addResults && (
                 <div className="p-3 rounded-lg bg-white/[0.03] border border-white/10 text-xs font-mono space-y-2">
                   <div className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <Check className="w-4 h-4" /> Successfully matched {addResults.matched} server(s).
+                    <Check className="w-4 h-4" /> Successfully correlated & added {addResults.matched} server(s) (duplicates filtered out).
                   </div>
                   {addResults.unmatched.length > 0 && (
                     <div className="space-y-1">
@@ -1883,7 +2341,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                   setShowAddServersModal(false);
                   setAddResults(null);
                 }}
-                className="px-3 py-1.5 rounded bg-white/5 text-slate-300 hover:bg-white/10 text-xs"
+                className="px-3 py-1.5 rounded bg-white/5 text-slate-300 hover:bg-white/10 text-xs cursor-pointer"
               >
                 Close
               </button>
@@ -1892,7 +2350,118 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 onClick={handleBulkAddServers}
                 className="px-4 py-1.5 rounded bg-blue-600 text-white font-medium hover:bg-blue-500 text-xs cursor-pointer shadow-lg shadow-blue-500/20"
               >
-                Correlate & Add to Incident
+                Correlate & Add Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOST ACTION MODAL (OPENED BY CLICKING HOSTNAME) */}
+      {hostActionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2 text-white font-mono font-bold text-sm">
+                <Server className="w-4 h-4 text-blue-400" />
+                <span>Host Management</span>
+              </div>
+              <button
+                onClick={() => setHostActionModal(null)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-2 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Hostname:</span>
+                <span className="text-white font-bold">{hostActionModal.host}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">VM Identifier:</span>
+                <span className="text-slate-200">{hostActionModal.vm}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Primary IP:</span>
+                <span className="text-cyan-300">{hostActionModal.primary_ip_address}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Business Unit:</span>
+                <span className="text-purple-300">{hostActionModal.business_unit}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Product:</span>
+                <span className="text-slate-300">{hostActionModal.product || 'Unassigned'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Responsible Manager:</span>
+                <span className="text-amber-300">{hostActionModal.manager || 'Unassigned'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1 font-mono">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectServer(hostActionModal.id);
+                  setHostActionModal(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>View Full Server Profile</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRemovingServer(hostActionModal);
+                  setHostActionModal(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Remove Host from Incident Triage</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REMOVE SERVER CONFIRMATION MODAL */}
+      {removingServer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-[#111827] border border-rose-500/30 rounded-xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-400 font-bold text-sm">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>Remove Host from Incident?</span>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Are you sure you want to remove <strong className="text-white font-mono">{removingServer.host}</strong> ({removingServer.vm}) from this incident?
+            </p>
+            <p className="text-[11px] text-slate-400">
+              This host will be unlinked from the incident's blast radius and removed from triage status tracking.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setRemovingServer(null)}
+                className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRemoveServerFromIncident(removingServer.id)}
+                disabled={isRemoving}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-lg shadow-rose-600/30"
+              >
+                {isRemoving ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>Confirm Remove</span>
               </button>
             </div>
           </div>
