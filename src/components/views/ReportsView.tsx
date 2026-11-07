@@ -32,6 +32,7 @@ import type { Incident, PatchCampaign, ServerRecord } from '../../types/index.js
 interface ReportsViewProps {
   onSelectServer: (id: string) => void;
   onFilterInventory?: (filters: Record<string, string>) => void;
+  canAccessIncidents?: boolean;
 }
 
 const toneClass: Record<string, string> = {
@@ -96,7 +97,7 @@ const MIN_WIDTHS: Record<string, number> = {
   reference: 120,
 };
 
-export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilterInventory }) => {
+export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilterInventory, canAccessIncidents = true }) => {
   const [servers, setServers] = useState<ServerRecord[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [campaigns, setCampaigns] = useState<PatchCampaign[]>([]);
@@ -108,13 +109,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [loadedAt, setLoadedAt] = useState<string>('');
 
+  const definitions = useMemo(
+    () =>
+      canAccessIncidents
+        ? REPORT_DEFINITIONS
+        : REPORT_DEFINITIONS.filter(report => report.id !== 10 && report.id !== 11),
+    [canAccessIncidents]
+  );
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       const [serverResponse, incidentResponse, campaignResponse] = await Promise.all([
         api.getServers({ limit: 1000 }),
-        api.getIncidents().catch(() => [] as Incident[]),
+        canAccessIncidents ? api.getIncidents().catch(() => [] as Incident[]) : Promise.resolve([] as Incident[]),
         api.getPatchCampaigns().catch(() => [] as PatchCampaign[]),
       ]);
       setServers(serverResponse.items);
@@ -132,6 +141,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!definitions.some(definition => definition.id === selectedReportId)) {
+      setSelectedReportId(definitions[0]?.id ?? 1);
+    }
+  }, [definitions, selectedReportId]);
 
   useEffect(() => {
     setReportSearch('');
@@ -245,7 +260,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
           <div>
             <h1 className="text-base font-bold text-white tracking-wide">OPERATIONAL REPORTING ENGINE</h1>
             <p className="text-xs text-slate-400">
-              {REPORT_DEFINITIONS.length} standard reports built from the live server, incident and patching data.
+              {definitions.length} standard reports built from the live server, incident and patching data.
             </p>
           </div>
         </div>
@@ -305,11 +320,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Report catalogue */}
-        <div className="md:col-span-4 rounded-xl soc-glass-panel border border-white/10 p-3 space-y-1.5 max-h-[720px] overflow-y-auto">
+        <div data-testid="report-catalogue" className="md:col-span-4 rounded-xl soc-glass-panel border border-white/10 p-3 space-y-1.5 max-h-[720px] overflow-y-auto">
           <span className="text-[10px] font-mono uppercase text-slate-400 tracking-wider px-2 block mb-2">
-            12 Standard Operational Reports
+            {definitions.length} Standard Operational Reports
           </span>
-          {REPORT_DEFINITIONS.map(report => (
+          {definitions.map(report => (
             <button
               key={report.id}
               onClick={() => setSelectedReportId(report.id)}

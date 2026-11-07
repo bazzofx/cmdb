@@ -1,21 +1,21 @@
 # Settings & Audit
 
-> **At a glance:** An administrative audit trail with search, plus three read-only status cards describing storage, session security and log retention.
+> **At a glance:** An administrative audit trail with search, read-only status cards, and — for admins — user and role management.
 
 | | |
 |---|---|
 | View id | `settings` |
 | Sidebar label | `Settings` |
 | Core component | `src/components/views/SettingsAuditView.tsx` |
-| Primary API | `GET /api/audit-logs` |
-| Primary users | SOC analysts and the CMDB administrator reconstructing who changed what; service managers verifying an import or incident declaration |
-| Depends on | The `audit_logs` array in `data/csm_database.json`; `GET /api/stats` for the indexed-server count |
+| Primary API | `GET /api/audit-logs`, `GET /api/users` (admin) |
+| Primary users | Managers and administrators reconstructing who changed what; admins managing local accounts |
+| Depends on | The `audit_logs` and `users` collections in `data/csm_database.json`; `GET /api/stats` |
 
 ## 1. What this page is for
 
-The page is two things in one: a searchable log of every administrative mutation the server records, and a small status board describing where data lives. The log is the only user-facing route into `audit_logs`; the cards are static text with two live numbers pulled in.
+The page is three things in one: a searchable log of security-relevant events, a small status board describing where data lives, and — for administrators only — a user/role management panel. Managers see the audit log; viewers and analysts do not see the page in the sidebar at all.
 
-There are no editable settings. Despite the heading "SECURITY, ROLE-BASED ACCESS & AUDIT LOGS", the page exposes no user management, no role assignment, no retention configuration and no persistence controls. It is a viewer.
+There are no optional settings beyond user management: no retention configuration and no persistence controls. The SLA/assignment settings described in the production plan are not implemented.
 
 ## 2. Who uses it, and for what
 
@@ -35,8 +35,10 @@ There are no editable settings. Despite the heading "SECURITY, ROLE-BASED ACCESS
 **Status cards.** A three-column grid of small panels, each with a label, an icon and a headline value:
 
 - **Database Engine** — headline **Relational JSON Storage**, body text naming `data/csm_database.json` as the on-disk location, and a green line "Connected • N indexed servers" where N is `total_servers`.
-- **Session Security** — headline **RBAC Enforced**, body "Current session: **SecOps Lead**. Full inventory write, incident triage, and campaign permissions.", and the note "Future provider: Microsoft Entra ID / OIDC".
-- **Audit Integrity** — headline **N Logged Events**, body describing an immutable log of imports, incident declarations and patch status changes, and the note "Retention: Active In-Memory & Disk".
+- **Session Security** — headline **Local Authentication**, body naming the signed-in user and role, and the note "Future provider: on-prem LDAP / Active Directory".
+- **Audit Integrity** — headline **N Logged Events**, body explaining that the audit log is operational and capped, with the note "Retention: capped JSON audit log".
+
+**Users & Roles (admin only).** A table of accounts with display name, email, role selector, active/disabled state, and actions to reset a password or disable the account. A **New user** form takes email, display name, role and a temporary password; new accounts must change it at first sign-in. Administrators cannot disable themselves or demote/disable the last active administrator.
 
 All three are plain markup. Only the server count and the event count are variable; the rest of the wording is hard-coded.
 
@@ -49,7 +51,7 @@ All three are plain markup. Only the server count and the event count are variab
 | UI label | Source field / API | Notes |
 |---|---|---|
 | Timestamp | `audit_logs[].timestamp` | ISO string from the server, formatted client-side |
-| User | `audit_logs[].user` | Falls back to `SecOps Admin` server-side when omitted |
+| User | `audit_logs[].user` | Falls back to `system` server-side when omitted |
 | Action | `audit_logs[].action` | e.g. `UPDATE_SERVER`, `IMPORT_CSV`, `CREATE_INCIDENT` |
 | Entity | `audit_logs[].entity_type` | `SERVER`, `INCIDENT`, `CAMPAIGN`, `INVENTORY` |
 | Details | `audit_logs[].details` | Falls back to "Mutation performed" in the UI |
@@ -83,9 +85,9 @@ Not displayed: `entity_id`, `previous_value` and `new_value`. The last two are s
 
 ## 6. Gotchas and guardrails
 
-- **"RBAC Enforced" is not enforced.** `server.ts` registers every `/api` route without authentication or authorisation middleware. The "SecOps Lead" session is a hard-coded string; the OIDC provider is described as future work. Treat any permission claim on this page as aspirational.
-- The log is capped at 500 events. `logAudit` unshifts and then slices to the newest 500, so the oldest events disappear silently. "Retention: Active In-Memory & Disk" understates this.
-- Several mutations are not audited at all: **Reset to Demo Seed**, incident host-detail updates (triage status, notes, ticket number), and communications previews. Absence of an event is therefore not evidence that nothing happened.
+- **Roles are enforced by the API.** Each route is guarded by the central policy in `auth.ts`. The sidebar hides Incidents/Archive from viewers, Data Sync/Settings from viewers and analysts, and user management from everyone except admins.
+- The log is capped at 500 events. `logAudit` unshifts and then slices to the newest 500, so the oldest events disappear silently. Export to a SIEM for durable retention.
+- Most mutations are audited, including incident host-detail updates and access-denied events. **Reset to Demo Seed** and communications previews are still not audited.
 - A call to `DELETE /api/servers/:id` writes a `DELETE_SERVER` event, but the record is gone; the audit entry is the only trace.
 - A failed `/api/audit-logs` or `/api/stats` call leaves the page looking empty rather than erroring. If the table is blank when you expect activity, reload before drawing conclusions.
 - Search is a case-insensitive substring match across action, user, entity type and details only. It does not search `entity_id` or timestamps, so searching an incident UUID will not match unless the string happens to appear in the details text.

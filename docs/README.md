@@ -13,7 +13,7 @@ The documentation describes the application **as implemented in this repository*
 | If you are… | Read, in this order |
 |---|---|
 | New to the console and need to look after the estate | [Overview](./pages/01-overview.md) → [Inventory](./pages/02-inventory.md) → [Incidents](./pages/07-incident-triage.md) → [Reports](./pages/10-reports.md) |
-| The ownership/data steward | [Inventory](./pages/02-inventory.md) → [Business Units](./pages/03-business-units.md) → [Ownership Explorer](./pages/05-ownership-explorer.md) → [Data Sync](./pages/11-data-management.md) → [Reports](./pages/10-reports.md) |
+| The ownership/data manager | [Inventory](./pages/02-inventory.md) → [Business Units](./pages/03-business-units.md) → [Ownership Explorer](./pages/05-ownership-explorer.md) → [Data Sync](./pages/11-data-management.md) → [Reports](./pages/10-reports.md) |
 | Responding to a security incident | [Incidents](./pages/07-incident-triage.md) → [Communications](./pages/09-communications.md) → [Archive Incident](./pages/08-archived-incidents.md) → [Reports](./pages/10-reports.md) |
 | Running the weekly patch review | [Reports](./pages/10-reports.md) (reports 8, 10, 11, 12) → [Incidents](./pages/07-incident-triage.md) |
 | Auditing or evidencing controls | [Reports](./pages/10-reports.md) → [Settings & Audit](./pages/12-settings-and-audit.md) |
@@ -35,12 +35,13 @@ The documentation describes the application **as implemented in this repository*
 | 9 | [Communications](./pages/09-communications.md) | not routed | Contact list preview and templated stakeholder mail |
 | 10 | [Reports](./pages/10-reports.md) | `reports` | The 12 standard reports, summaries, drill-through and exports |
 | 11 | [Data Sync](./pages/11-data-management.md) | `data-management` | CSV import wizard, strategies, validation, history and reset |
-| 12 | [Settings & Audit](./pages/12-settings-and-audit.md) | `settings` | Environment status cards and the audit log |
+| 12 | [Settings & Audit](./pages/12-settings-and-audit.md) | `settings` | Environment status, audit log and admin user/role management |
 
 Supporting documents:
 
 - [Architecture](./architecture.md) — stack, data model, API surface, cross-view navigation and known limitations
 - [Operations runbook](./operations-runbook.md) — install, run, build, backup, reset, import and verification
+- [Authentication for production](../authentication4Production.md) — local auth, roles, secure deployment checklist and LDAP plan
 
 ## The reports at a glance
 

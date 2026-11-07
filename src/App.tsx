@@ -19,9 +19,14 @@ import { DataManagementView } from './components/views/DataManagementView.js';
 import { SettingsAuditView } from './components/views/SettingsAuditView.js';
 
 import { api } from './services/api.js';
+import { AuthProvider, useAuth } from './context/AuthContext.js';
+import { LoginView } from './components/auth/LoginView.js';
+import { ChangePasswordModal } from './components/auth/ChangePasswordModal.js';
 import type { DashboardMetrics, AuditLogEvent, Incident } from './types/index.js';
 
-export function App() {
+function AppShell() {
+  const { user, loading, login, logout, refresh } = useAuth();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentView, setCurrentView] = useState<string>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -56,13 +61,16 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const canAccessIncidents = user?.role !== 'viewer';
+  const canViewAudit = user?.role === 'manager' || user?.role === 'admin';
+
   const loadDashboardData = useCallback(async () => {
     setLoadingMetrics(true);
     try {
       const [stats, logs, incidents] = await Promise.all([
         api.getStats(),
-        api.getAuditLogs(),
-        api.getIncidents().catch(() => [] as Incident[]),
+        canViewAudit ? api.getAuditLogs().catch(() => [] as AuditLogEvent[]) : Promise.resolve([] as AuditLogEvent[]),
+        canAccessIncidents ? api.getIncidents().catch(() => [] as Incident[]) : Promise.resolve([] as Incident[]),
       ]);
       setMetrics(stats);
       setRecentLogs(logs);
@@ -80,11 +88,11 @@ export function App() {
     } finally {
       setLoadingMetrics(false);
     }
-  }, []);
+  }, [canViewAudit, canAccessIncidents]);
 
   useEffect(() => {
-    void loadDashboardData();
-  }, [loadDashboardData]);
+    if (user) void loadDashboardData();
+  }, [user?.id, loadDashboardData]);
 
   const handleSelectServer = useCallback((id: string) => setSelectedServerId(id), []);
 
@@ -109,6 +117,20 @@ export function App() {
     setCurrentView('communications');
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#070B14] flex items-center justify-center text-xs font-mono text-slate-400">
+        <div className="p-8 rounded-2xl border border-white/5 bg-slate-900/40">
+          Checking your session…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView onLogin={async (email, password) => { await login(email, password); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
       {/* 1. Global Navbar */}
@@ -117,13 +139,30 @@ export function App() {
         onNavigate={handleNavigate}
         serverCount={metrics?.total_servers ?? 0}
         openIncidentsCount={activeIncidentCount}
+        user={user}
+        onLogout={() => void logout()}
+        onChangePassword={() => setShowPasswordModal(true)}
+        canAccessIncidents={canAccessIncidents}
       />
+
+      {user.must_change_password && (
+        <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-200 flex items-center justify-center gap-2">
+          <span>You are using a temporary password.</span>
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="underline hover:text-amber-100 cursor-pointer"
+          >
+            Change it now
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* 2. Collapsible Left-hand Navigation Sidebar */}
         <Sidebar
           currentView={currentView}
           onNavigate={handleNavigate}
+          role={user.role}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           metrics={{
@@ -144,6 +183,7 @@ export function App() {
               loading={loadingMetrics}
               onNavigate={handleNavigate}
               onSelectServer={handleSelectServer}
+              canAccessIncidents={canAccessIncidents}
             />
           )}
 
@@ -155,6 +195,8 @@ export function App() {
               onSelectServer={handleSelectServer}
               onOpenIncidentWithServers={handleOpenIncidentWithServers}
               onOpenCommunicationsWithServers={handleOpenCommunicationsWithServers}
+              canCreateIncident={user.role !== 'viewer'}
+              canCommunicate={user.role !== 'viewer'}
             />
           )}
 
@@ -192,6 +234,7 @@ export function App() {
               onSelectServer={handleSelectServer}
               onNavigateToArchive={() => setCurrentView('archived-incidents')}
               onRefreshIncidents={loadDashboardData}
+              canWrite={user.role !== 'viewer'}
             />
           )}
 
@@ -200,6 +243,7 @@ export function App() {
               onSelectServer={handleSelectServer}
               onNavigateToActiveIncidents={() => setCurrentView('incident-triage')}
               onRefreshIncidents={loadDashboardData}
+              canWrite={user.role !== 'viewer'}
             />
           )}
 
@@ -213,6 +257,7 @@ export function App() {
             <ReportsView
               onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
+              canAccessIncidents={canAccessIncidents}
             />
           )}
 
@@ -242,7 +287,23 @@ export function App() {
         onNavigateServer={id => setSelectedServerId(id)}
         onAddToIncident={server => handleOpenIncidentWithServers([server.id])}
       />
+
+      {showPasswordModal && (
+        <ChangePasswordModal
+          temporary={Boolean(user.must_change_password)}
+          onClose={() => setShowPasswordModal(false)}
+          onSuccess={() => void refresh()}
+        />
+      )}
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   );
 }
 

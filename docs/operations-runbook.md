@@ -37,17 +37,29 @@ npm run dev
 - Change the port with `PORT=3010 npm run dev` (macOS/Linux) or `$env:PORT=3010; npm run dev` (PowerShell).
 - The first start seeds `data/csm_database.json` if it does not exist, then sanitises and rewrites it. This is normal: `updated_at` values change on first boot.
 
+### Sign in (local authentication)
+
+Authentication is enabled by default (`AUTH_MODE=local`). The repository's ignored `.env` contains development-only credentials:
+
+```text
+admin@cmdb.local / AdminDevPass-123!
+```
+
+Change that password from the user menu before sharing the environment. If `.env` is missing, the server bootstraps an administrator and prints a generated password once at startup. Production settings and the full pre-flight checklist are in [authentication4Production.md](../authentication4Production.md).
+
+Health check now needs a session:
+
+```bash
+curl -c cookies.txt -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@cmdb.local","password":"AdminDevPass-123!"}'
+curl -b cookies.txt http://localhost:3000/api/stats
+curl -b cookies.txt "http://localhost:3000/api/servers?limit=5"
+```
+
 ### Windows launcher
 
 Double-click `start-dev.bat`, or run `start-dev.bat 3010` from a terminal at the repo root. The script checks Node.js is on `PATH`, installs dependencies on first run (`npm install --legacy-peer-deps`), starts `npm run dev` on port 3000 (or the port you pass), opens the browser after a few seconds, and keeps the window open when the server stops. Set `NO_BROWSER=1` before running to skip the browser step.
-
-Health check:
-
-```bash
-curl http://localhost:3000/api/stats
-curl "http://localhost:3000/api/servers?limit=5"
-curl http://localhost:3000/api/patching/campaigns
-```
 
 ## 3. Build and run in production mode
 
@@ -108,7 +120,8 @@ Required columns are matched by header aliases; the canonical source headers are
 ```bash
 npm run verify:reports   # builds all 12 reports and asserts their semantics
 npm run verify:incidents # asserts the shared patched/communicated/documentation rules
-npm run verify           # both suites
+npm run verify:auth      # hashing, password policy, cookies and the role matrix
+npm run verify           # all three suites
 npm run lint             # tsc --noEmit
 npm run build            # production bundle
 ```
@@ -121,7 +134,7 @@ Optional UI smoke test (needs the dev server on port 3010 and Chrome started wit
 node scripts/ui-smoke.mjs
 ```
 
-It loads the app, visits every sidebar view, checks all 12 reports (titles/columns/row counts/summary cards), narrows a search, opens a server from a report row, and writes screenshots. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
+It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (defaults to `admin@cmdb.local` / `AdminDevPass-123!`), visits every sidebar view, checks all 12 reports, narrows a search and opens a server from a report row. Views hidden by the signed-in role are skipped. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
 
 ## 8. Troubleshooting
 

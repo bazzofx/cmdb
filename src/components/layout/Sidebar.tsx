@@ -21,6 +21,7 @@ interface SidebarProps {
   onNavigate: (view: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  role: 'viewer' | 'analyst' | 'manager' | 'admin';
   metrics?: {
     serverCount: number;
     buCount: number;
@@ -35,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   collapsed,
   onToggleCollapse,
+  role,
   metrics,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -116,6 +118,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const canSeeIncidents = role === 'analyst' || role === 'manager' || role === 'admin';
+  const visibleNavItems = navItems.filter(item => {
+    if (item.id === 'incident-triage' || item.id === 'archived-incidents') return canSeeIncidents;
+    if (item.id === 'data-management') return role === 'manager' || role === 'admin';
+    if (item.id === 'settings') return role === 'manager' || role === 'admin';
+    return true;
+  });
+
   return (
     <aside
       className={`h-[calc(100vh-4rem)] bg-[#070B14] border-r border-white/[0.06] flex flex-col justify-between transition-all duration-300 select-none z-20 relative overflow-hidden ${
@@ -124,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* Navigation List */}
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 z-10 scrollbar-none">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = currentView === item.id;
           const Icon = item.icon;
 

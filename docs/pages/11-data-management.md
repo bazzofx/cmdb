@@ -8,7 +8,7 @@
 | Sidebar label | `Data Sync` |
 | Core component | `src/components/views/DataManagementView.tsx` |
 | Primary API | `POST /api/imports/preview` |
-| Primary users | Data stewards, infrastructure owners and the CMDB administrator who receive the monthly CSM extract |
+| Primary users | Data managers, infrastructure owners and the CMDB administrator who receive the monthly CSM extract |
 | Depends on | `parseCsvToServers` and `sanitizeServerRecord` in `server.ts`; `data/csm_database.json`; the sample CSV under `public/assets/aistudio/` |
 
 ## 1. What this page is for
@@ -106,6 +106,8 @@ Buttons: **Back**, and **Execute Import Now**, which becomes **Executing Import.
 4. The header counters refresh; a new `INITIAL_IMPORT` history row replaces the previous history.
 
 ## 6. Gotchas and guardrails
+
+- Data Sync is visible only to `manager` and `admin`; the imports API returns `403` for viewers and analysts.
 
 **Destructive behaviour.**
 

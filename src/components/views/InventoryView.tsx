@@ -49,6 +49,8 @@ interface InventoryViewProps {
   onSelectServer: (id: string) => void;
   onOpenCommunicationsWithServers: (serverIds: string[]) => void;
   onOpenIncidentWithServers: (serverIds: string[]) => void;
+  canCreateIncident?: boolean;
+  canCommunicate?: boolean;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
@@ -58,6 +60,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onSelectServer,
   onOpenCommunicationsWithServers,
   onOpenIncidentWithServers,
+  canCreateIncident = true,
+  canCommunicate = true,
 }) => {
   const [servers, setServers] = useState<ServerRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -688,16 +692,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </button>
 
             <button
-              onClick={() => onOpenIncidentWithServers(Array.from(selectedIds))}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 transition-colors cursor-pointer"
+              onClick={() => canCreateIncident && onOpenIncidentWithServers(Array.from(selectedIds))}
+              disabled={!canCreateIncident}
+              title={canCreateIncident ? 'Open an incident for the selection' : 'Your role cannot create incidents'}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <IncidentIcon className="w-3.5 h-3.5" />
               <span>Incident Impact</span>
             </button>
 
             <button
-              onClick={() => onOpenCommunicationsWithServers(Array.from(selectedIds))}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition-colors cursor-pointer"
+              onClick={() => canCommunicate && onOpenCommunicationsWithServers(Array.from(selectedIds))}
+              disabled={!canCommunicate}
+              title={canCommunicate ? 'Build a contact list for the selection' : 'Your role cannot open communications'}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>Contact List</span>

@@ -1,15 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   TriangleAlert,
   Layers,
+  LogOut,
+  KeyRound,
+  ChevronDown,
 } from 'lucide-react';
+import type { AuthUser } from '../../types/index.js';
 
 interface NavbarProps {
   onOpenSearch: () => void;
   onNavigate: (view: string, filterParams?: Record<string, string>) => void;
   serverCount: number;
   openIncidentsCount: number;
+  user: AuthUser;
+  onLogout: () => void;
+  onChangePassword: () => void;
+  canAccessIncidents: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,7 +25,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   serverCount,
   openIncidentsCount,
+  user,
+  onLogout,
+  onChangePassword,
+  canAccessIncidents,
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const initials = user.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase())
+    .join('') || user.email[0]?.toUpperCase() || '?';
   return (
     <header className="h-16 border-b border-white/[0.08] bg-[#070B14]/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Brand: Geometric Gradient N + NEXUSINFRA */}
@@ -92,21 +111,58 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Incidents Pill */}
-        <button
-          onClick={() => onNavigate('incident-triage')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 transition-all cursor-pointer text-xs font-medium"
-          title="Active incidents requiring triage"
-        >
-          <TriangleAlert className="w-3.5 h-3.5 text-rose-400" />
-          <span>{openIncidentsCount} Incident{openIncidentsCount === 1 ? '' : 's'}</span>
-        </button>
+        {canAccessIncidents && (
+          <button
+            onClick={() => onNavigate('incident-triage')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 transition-all cursor-pointer text-xs font-medium"
+            title="Active incidents requiring triage"
+          >
+            <TriangleAlert className="w-3.5 h-3.5 text-rose-400" />
+            <span>{openIncidentsCount} Incident{openIncidentsCount === 1 ? '' : 's'}</span>
+          </button>
+        )}
 
-        {/* User Avatar PB */}
-        <div 
-          className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center cursor-pointer shadow-md shadow-blue-500/20 border border-blue-400/30 transition-transform active:scale-95"
-          title="Signed in as Primary SecOps Admin"
-        >
-          PB
+        {/* User menu */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen(open => !open)}
+            className="flex items-center gap-1.5 cursor-pointer group"
+            title={`Signed in as ${user.name} (${user.role})`}
+          >
+            <div className="w-8 h-8 rounded-full bg-blue-600 group-hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center shadow-md shadow-blue-500/20 border border-blue-400/30 transition-transform active:scale-95">
+              {initials}
+            </div>
+            <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 w-60 z-50 rounded-xl border border-white/10 bg-[#0b1120] shadow-2xl p-2">
+                <div className="px-2 py-1.5 border-b border-white/10 mb-1">
+                  <div className="text-xs font-semibold text-white truncate">{user.name}</div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">{user.email}</div>
+                  <span className="inline-block mt-1 text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                    {user.role}
+                  </span>
+                </div>
+                <button
+                  onClick={() => { setMenuOpen(false); onChangePassword(); }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[11px] text-slate-300 hover:bg-white/5 cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Change password
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); onLogout(); }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[11px] text-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>

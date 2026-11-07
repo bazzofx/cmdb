@@ -1,5 +1,16 @@
 // Types for CSM Server Ownership & Business Intelligence Dashboard
 
+export type UserRole = 'viewer' | 'analyst' | 'manager' | 'admin';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  active?: boolean;
+  must_change_password?: boolean;
+}
+
 export interface ServerRecord {
   id: string;
   host: string;
@@ -155,6 +166,7 @@ export interface IncidentHostDetail {
   notes?: string;
   communicated?: boolean;
   communication_date?: string;
+  updated_by?: string;
   updated_at?: string;
 }
 
@@ -245,6 +257,10 @@ export interface AuditLogEvent {
   previous_value?: any;
   new_value?: any;
   details?: string;
+  actor_role?: UserRole;
+  outcome?: 'success' | 'failure';
+  ip?: string;
+  user_agent?: string;
 }
 
 export interface ImportHistoryItem {

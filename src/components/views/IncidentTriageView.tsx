@@ -48,6 +48,7 @@ interface IncidentTriageViewProps {
   initialServerIds?: string[];
   onNavigateToArchive?: () => void;
   onRefreshIncidents?: () => void;
+  canWrite?: boolean;
 }
 
 export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
@@ -55,6 +56,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   initialServerIds,
   onNavigateToArchive,
   onRefreshIncidents,
+  canWrite = true,
 }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
@@ -209,7 +211,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   };
 
   const handleStatusChange = async (serverId: string, newStatus: TriageHostStatus) => {
-    if (!selectedIncidentId) return;
+    if (!selectedIncidentId || !canWrite) return;
 
     const current = hostDetails[serverId] || { server_id: serverId, status: 'To be contacted' };
     const updated: IncidentHostDetail = {
@@ -233,7 +235,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   // When clicking the calls icon: triage status is changed to Contacted
   const handleCallHost = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!selectedIncidentId) return;
+    if (!selectedIncidentId || !canWrite) return;
 
     const current = hostDetails[serverId] || { server_id: serverId, status: 'To be contacted' };
     const updated: IncidentHostDetail = {
@@ -257,7 +259,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   };
 
   const handleMarkAllCommunicated = async () => {
-    if (!selectedIncidentId || !impact) return;
+    if (!selectedIncidentId || !impact || !canWrite) return;
     const now = new Date().toISOString().split('T')[0];
     const updatedMap = { ...hostDetails };
     const updates: Array<[string, IncidentHostDetail]> = [];
@@ -287,6 +289,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
 
   // Open Notes Modal
   const openNotesModal = (server: ServerRecord) => {
+    if (!canWrite) return;
     setEditingServer(server);
     const detail = hostDetails[server.id] || {
       server_id: server.id,
@@ -308,7 +311,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   };
 
   const handleSaveNotes = async () => {
-    if (!selectedIncidentId || !editingServer) return;
+    if (!selectedIncidentId || !editingServer || !canWrite) return;
     setSavingNote(true);
 
     const current = hostDetails[editingServer.id] || {
@@ -770,6 +773,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
           {selectedIncident && (
             <>
               {/* Upload / Add Hosts Button */}
+              {canWrite && (
               <button
                 onClick={() => {
                   setAddResults(null);
@@ -781,6 +785,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 <Upload className="w-3.5 h-3.5 text-blue-400" />
                 <span>Upload Hosts</span>
               </button>
+              )}
 
               {/* Report Export Dropdown Button (PDF, Word, Markdown) */}
               <div className="relative">
@@ -835,6 +840,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
               </div>
 
               {/* Close & Archive Active Incident */}
+              {canWrite && (
               <button
                 onClick={() => setShowCloseModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/50 text-xs font-mono font-semibold hover:border-emerald-400 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
@@ -843,9 +849,11 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 <FolderArchive className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Close & Archive</span>
               </button>
+              )}
             </>
           )}
 
+          {canWrite && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-mono font-medium hover:bg-rose-500 transition-colors cursor-pointer shrink-0 shadow-lg shadow-rose-500/20"
@@ -853,6 +861,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>New Incident</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -1185,6 +1194,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                     <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                       <StickyNote className="w-4 h-4" /> Notes & Communication
                     </span>
+                    {canWrite && (
                     <button
                       onClick={handleMarkAllCommunicated}
                       className="text-[10px] font-mono text-blue-400 hover:text-blue-300 underline cursor-pointer"
@@ -1192,6 +1202,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                     >
                       Notify All
                     </button>
+                    )}
                   </div>
 
                   <div className="space-y-2 text-xs">
@@ -1405,6 +1416,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                     </button>
                   )}
 
+                  {canWrite && (
                   <button
                     onClick={() => {
                       setAddResults(null);
@@ -1416,6 +1428,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                     <Upload className="w-3.5 h-3.5" />
                     <span>Upload Hosts</span>
                   </button>
+                  )}
 
                   <button
                     onClick={exportAffectedCsv}

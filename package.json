@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "verify:reports": "tsx scripts/verify-reports.ts",
     "verify:incidents": "tsx scripts/verify-incident-analysis.ts",
-    "verify": "npm run verify:reports && npm run verify:incidents"
+    "verify:auth": "tsx scripts/verify-auth.ts",
+    "verify": "npm run verify:reports && npm run verify:incidents && npm run verify:auth"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

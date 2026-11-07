@@ -9,9 +9,12 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
+import { useAuth } from '../../context/AuthContext.js';
+import { UsersPanel } from '../settings/UsersPanel.js';
 import type { AuditLogEvent } from '../../types/index.js';
 
 export const SettingsAuditView: React.FC = () => {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLogEvent[]>([]);
   const [search, setSearch] = useState('');
   const [serverCount, setServerCount] = useState(0);
@@ -66,6 +69,8 @@ export const SettingsAuditView: React.FC = () => {
         </button>
       </div>
 
+      {user?.role === 'admin' && <UsersPanel />}
+
       {/* System Diagnostics & Storage Health */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
         <div className="p-4 rounded-xl soc-glass-panel border border-white/10 space-y-2">
@@ -87,12 +92,13 @@ export const SettingsAuditView: React.FC = () => {
             <span className="uppercase text-[10px]">Session Security</span>
             <Lock className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-sm font-bold text-white">RBAC Enforced</div>
+          <div className="text-sm font-bold text-white">Local Authentication</div>
           <p className="text-[11px] text-slate-400 font-sans">
-            Current session: <span className="text-blue-300 font-bold">SecOps Lead</span>. Full inventory write, incident triage, and campaign permissions.
+            Current user: <span className="text-blue-300 font-bold">{user?.name}</span>{' '}
+            <span className="text-slate-300">({user?.role})</span>. Role checks are enforced by the API.
           </p>
           <div className="text-[11px] text-slate-400 pt-1">
-            Future provider: Microsoft Entra ID / OIDC
+            Future provider: on-prem LDAP / Active Directory
           </div>
         </div>
 
@@ -103,10 +109,10 @@ export const SettingsAuditView: React.FC = () => {
           </div>
           <div className="text-sm font-bold text-white">{logs.length} Logged Events</div>
           <p className="text-[11px] text-slate-400 font-sans">
-            Immutable operation log capturing inventory imports, incident declarations, and patch status changes.
+            Operational log of authentication, inventory, incident and patch changes. Capped in the JSON store; export to a SIEM for durable evidence.
           </p>
           <div className="text-[11px] text-purple-300 pt-1">
-            Retention: Active In-Memory & Disk
+            Retention: capped JSON audit log
           </div>
         </div>
       </div>

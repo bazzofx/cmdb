@@ -21,6 +21,7 @@ interface OverviewViewProps {
   loading: boolean;
   onNavigate: (view: string, filterParams?: Record<string, string>) => void;
   onSelectServer: (id: string) => void;
+  canAccessIncidents?: boolean;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -28,6 +29,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   recentLogs,
   loading,
   onNavigate,
+  canAccessIncidents = true,
 }) => {
   const [timeRange, setTimeRange] = useState('Last 24 Hours');
   const [isTimeRangeOpen, setIsTimeRangeOpen] = useState(false);
@@ -862,17 +864,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 Top Risks
               </h2>
             </div>
-            <button
-              onClick={() => onNavigate('incident-triage')}
-              className="text-xs text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            {canAccessIncidents && (
+              <button
+                onClick={() => onNavigate('incident-triage')}
+                className="text-xs text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
+              >
+                <span>View All</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-2.5 pt-1">
             {/* Risk 1 */}
+            {canAccessIncidents && (
             <div
               onClick={() => onNavigate('incident-triage')}
               className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/30 cursor-pointer text-xs group"
@@ -888,6 +893,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               </div>
               <span className="font-mono text-[11px] text-slate-500 shrink-0">6h ago</span>
             </div>
+            )}
 
             {/* Risk 2 */}
             <div
@@ -960,6 +966,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span className="font-mono text-[11px] text-slate-500 shrink-0">4h ago</span>
             </div>
 
+            {canAccessIncidents && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 truncate">
                 <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
@@ -967,6 +974,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               </div>
               <span className="font-mono text-[11px] text-slate-500 shrink-0">6h ago</span>
             </div>
+            )}
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 truncate">

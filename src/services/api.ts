@@ -8,6 +8,8 @@ import type {
   ImportHistoryItem,
   DashboardMetrics,
   ProductSummary,
+  AuthUser,
+  UserRole,
 } from '../types/index.js';
 
 const API_BASE = '/api';
@@ -18,20 +20,27 @@ const API_BASE = '/api';
 // ---------------------------------------------------------------------------
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Fallback message when the server does not return `{ error }`. */
   failure: string;
 }
 
-async function request<T>(path: string, options: RequestOptions): Promise<T> {
-  const init: RequestInit = { method: options.method ?? 'GET' };
+async function request<T>(
+  path: string,
+  options: RequestOptions,
+  base: string = API_BASE
+): Promise<T> {
+  const init: RequestInit = { method: options.method ?? 'GET', credentials: 'same-origin' };
   if (options.body !== undefined) {
     init.headers = { 'Content-Type': 'application/json' };
     init.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, init);
+  const response = await fetch(`${base}${path}`, init);
+  if (response.status === 401 && base === API_BASE && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:expired'));
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || options.failure);
@@ -137,6 +146,42 @@ export interface AddIncidentServersResult {
 // ---------------------------------------------------------------------------
 
 export const api = {
+  // Authentication
+  login: (email: string, password: string) =>
+    request<{ user: AuthUser }>(
+      '/auth/login',
+      { method: 'POST', body: { email, password }, failure: 'Sign-in failed' },
+      ''
+    ),
+
+  logout: () =>
+    request<{ success: boolean }>('/auth/logout', { method: 'POST', failure: 'Sign-out failed' }, ''),
+
+  getMe: () => request<{ user: AuthUser }>('/me', { failure: 'Not signed in' }),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ success: boolean }>('/me/password', {
+      method: 'POST',
+      body: { current_password, new_password },
+      failure: 'Failed to change password',
+    }),
+
+  getUsers: (all = false) =>
+    request<AuthUser[]>(`/users${all ? '?all=1' : ''}`, { failure: 'Failed to fetch users' }),
+
+  createUser: (data: { email: string; name: string; role: UserRole; password: string }) =>
+    request<AuthUser>('/users', { method: 'POST', body: data, failure: 'Failed to create user' }),
+
+  updateUser: (id: string, data: { name?: string; role?: UserRole; active?: boolean }) =>
+    request<AuthUser>(`/users/${id}`, { method: 'PATCH', body: data, failure: 'Failed to update user' }),
+
+  resetUserPassword: (id: string, password: string) =>
+    request<{ success: boolean }>(`/users/${id}/reset-password`, {
+      method: 'POST',
+      body: { password },
+      failure: 'Failed to reset password',
+    }),
+
   // Stats
   getStats: () => request<DashboardMetrics>('/stats', { failure: 'Failed to fetch stats' }),
 

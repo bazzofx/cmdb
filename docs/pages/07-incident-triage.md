@@ -101,7 +101,7 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 - Removing a host deletes its `host_details` entry; the notes, ticket and engineer recorded for it are lost with no confirmation beyond the modal.
 - Documents exported before closure say `Investigating`; exports are snapshots and are not regenerated when the record changes.
 - The CSV export ignores the on-screen filters and always writes every affected server.
-- No role checks exist anywhere; anyone who can open the app can archive an incident.
+- Incident access and writes are limited to `analyst`, `manager` and `admin` roles. Viewers do not see Incidents or Archive Incident in the sidebar, the API returns `403` for their incident requests, and write controls are hidden for roles that cannot use them.
 
 ## 7. For developers
 

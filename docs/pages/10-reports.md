@@ -107,6 +107,7 @@ Summary cards are computed from the same rows, so a card and the table can never
 
 ## 6. Gotchas and guardrails
 
+- Viewers only have reports 1–9 and 12. The incident-derived reports 10 and 11 are hidden and are not even fetched without incident access.
 - Reports are a snapshot of the last load, not a live feed. Press **Refresh** after importing data or changing incidents; the footer timestamp tells you how old the snapshot is.
 - The loader requests `limit=1000`. Beyond 1,000 servers the inventory-based reports are truncated. This is the same ceiling used elsewhere in the app; paginate or raise the limit deliberately if the estate grows.
 - Report 3 and report 9 can legitimately be empty on a clean estate. That is a pass, not a broken report — the empty message says so.

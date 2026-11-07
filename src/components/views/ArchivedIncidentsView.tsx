@@ -19,12 +19,14 @@ interface ArchivedIncidentsViewProps {
   onSelectServer: (id: string) => void;
   onNavigateToActiveIncidents?: () => void;
   onRefreshIncidents?: () => void;
+  canWrite?: boolean;
 }
 
 export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
   onSelectServer,
   onNavigateToActiveIncidents,
   onRefreshIncidents,
+  canWrite = true,
 }) => {
   const [archivedIncidents, setArchivedIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
@@ -238,7 +240,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
             </div>
           )}
 
-          {selectedIncident && (
+          {selectedIncident && canWrite && (
             <button
               onClick={handleReopen}
               disabled={reopening}

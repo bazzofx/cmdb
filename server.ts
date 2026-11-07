@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
@@ -13,7 +14,25 @@ import type {
   AuditLogEvent,
   ImportHistoryItem,
   DashboardMetrics,
+  AuthUser,
+  UserRole,
 } from './src/types/index.js';
+import {
+  SESSION_COOKIE,
+  SESSION_TTL_HOURS,
+  buildSessionCookie,
+  clearSessionCookie,
+  hashPassword,
+  isRole,
+  normalizeEmail,
+  parseCookies,
+  randomPassword,
+  requiredRolesFor,
+  sanitizeUser,
+  validatePassword,
+  verifyPassword,
+} from './auth.js';
+import type { SessionRecord, UserRecord } from './auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,6 +145,8 @@ interface DatabaseSchema {
   patch_campaigns: PatchCampaign[];
   audit_logs: AuditLogEvent[];
   import_history: ImportHistoryItem[];
+  users: UserRecord[];
+  sessions: SessionRecord[];
 }
 
 // In-memory persistent database instance
@@ -136,6 +157,8 @@ class Database {
     patch_campaigns: [],
     audit_logs: [],
     import_history: [],
+    users: [],
+    sessions: [],
   };
 
   init() {
@@ -160,7 +183,51 @@ class Database {
       console.log('[DB] Database file not found. Seeding initial data from CSV...');
       this.seedFromDefaultCsv();
     }
+
+    if (!Array.isArray(this.data.users)) this.data.users = [];
+    if (!Array.isArray(this.data.sessions)) this.data.sessions = [];
+    // Rename the old steward role for databases created before the role split.
+    for (const user of this.data.users) {
+      if ((user as { role?: string }).role === 'steward') user.role = 'manager';
+    }
+    this.ensureBootstrapAdmin();
+    this.pruneSessions();
     this.save();
+  }
+
+  /** Creates the first administrator when the user table is empty (air-gapped bootstrap). */
+  ensureBootstrapAdmin() {
+    if (this.data.users.length > 0) return;
+
+    const email = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@cmdb.local');
+    const providedPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+    const password = providedPassword || randomPassword();
+    const now = new Date().toISOString();
+
+    this.data.users.push({
+      id: crypto.randomUUID(),
+      email,
+      name: process.env.BOOTSTRAP_ADMIN_NAME || 'Local Administrator',
+      role: 'admin',
+      password_hash: hashPassword(password),
+      active: true,
+      must_change_password: !providedPassword,
+      created_at: now,
+      updated_at: now,
+    });
+
+    console.log(`[AUTH] Bootstrapped administrator: ${email}`);
+    if (!providedPassword) {
+      console.log('[AUTH] Generated first-run password (store it now, it is not shown again):');
+      console.log(`[AUTH]     ${password}`);
+    }
+  }
+
+  pruneSessions() {
+    const now = Date.now();
+    this.data.sessions = (this.data.sessions || []).filter(
+      session => Date.parse(session.expires_at) > now
+    );
   }
 
   save() {
@@ -171,17 +238,30 @@ class Database {
     }
   }
 
-  logAudit(user: string, action: string, entity_type: string, entity_id: string, prev?: any, next?: any, details?: string) {
+  logAudit(
+    user: string,
+    action: string,
+    entity_type: string,
+    entity_id: string,
+    prev?: any,
+    next?: any,
+    details?: string,
+    meta?: { actor_role?: UserRole; outcome?: 'success' | 'failure'; ip?: string; user_agent?: string }
+  ) {
     const event: AuditLogEvent = {
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
-      user: user || 'SecOps Admin',
+      user: user || 'system',
       action,
       entity_type,
       entity_id,
       previous_value: prev,
       new_value: next,
       details,
+      actor_role: meta?.actor_role,
+      outcome: meta?.outcome ?? 'success',
+      ip: meta?.ip,
+      user_agent: meta?.user_agent,
     };
     this.data.audit_logs.unshift(event);
     if (this.data.audit_logs.length > 500) {
@@ -419,8 +499,356 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // -------------------------------------------------------------------------
+  // LOCAL AUTHENTICATION (air-gapped)
+  // -------------------------------------------------------------------------
+  const AUTH_MODE = (process.env.AUTH_MODE || 'local').toLowerCase();
+  if (!['local', 'disabled', 'ldap'].includes(AUTH_MODE)) {
+    throw new Error(`[AUTH] Unsupported AUTH_MODE "${AUTH_MODE}". Use local, ldap or disabled.`);
+  }
+  if (AUTH_MODE === 'ldap') {
+    throw new Error('[AUTH] AUTH_MODE=ldap is not implemented yet. Use local for now.');
+  }
+  if (AUTH_MODE === 'disabled' && process.env.NODE_ENV === 'production') {
+    throw new Error('[AUTH] AUTH_MODE=disabled is not allowed in production.');
+  }
+
+  const SESSION_SECURE =
+    process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV === 'production';
+  if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+
+  // Basic CSRF hardening: reject cross-origin state changes from browsers.
+  app.use((req, res, next) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    const origin = req.headers.origin;
+    if (!origin) return next();
+    const allowed = new Set([`${req.protocol}://${req.get('host')}`]);
+    if (process.env.APP_URL) {
+      try {
+        allowed.add(new URL(process.env.APP_URL).origin);
+      } catch {
+        // Ignore malformed APP_URL; the request origin still has to match the host.
+      }
+    }
+    if (!allowed.has(origin)) {
+      return res.status(403).json({ error: 'Cross-origin request blocked.' });
+    }
+    return next();
+  });
+
+  const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_MS = 15 * 60 * 1000;
+
+  const auditMeta = (
+    req: Request,
+    role?: UserRole,
+    outcome: 'success' | 'failure' = 'success'
+  ) => ({
+    actor_role: role,
+    outcome,
+    ip: req.ip,
+    user_agent: req.headers['user-agent'],
+  });
+
+  const findSessionUser = (req: Request): AuthUser | undefined => {
+    if (AUTH_MODE === 'disabled') {
+      return {
+        id: 'local-dev',
+        email: 'dev@localhost',
+        name: 'Local Developer',
+        role: 'admin',
+      };
+    }
+    const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    if (!sessionId) return undefined;
+    const session = db.data.sessions.find(item => item.id === sessionId);
+    if (!session || Date.parse(session.expires_at) <= Date.now()) return undefined;
+    const user = db.data.users.find(item => item.id === session.user_id && item.active);
+    return user ? sanitizeUser(user) : undefined;
+  };
+
+  const createSession = (user: UserRecord, req: Request): string => {
+    const id = crypto.randomBytes(32).toString('base64url');
+    const now = Date.now();
+    db.data.sessions.push({
+      id,
+      user_id: user.id,
+      created_at: new Date(now).toISOString(),
+      expires_at: new Date(now + SESSION_TTL_HOURS * 3600_000).toISOString(),
+      ip: req.ip,
+      user_agent: req.headers['user-agent'],
+    });
+    return id;
+  };
+
+  app.post('/auth/login', (req: Request, res: Response) => {
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password ?? '');
+    const attempt = loginAttempts.get(email);
+    if (attempt && attempt.lockedUntil > 0 && attempt.lockedUntil <= Date.now()) {
+      loginAttempts.delete(email);
+    }
+    if (attempt && attempt.lockedUntil > Date.now()) {
+      db.logAudit(
+        email || 'unknown',
+        'LOGIN_LOCKED',
+        'AUTH',
+        email,
+        null,
+        null,
+        'Login blocked by lockout',
+        auditMeta(req, undefined, 'failure')
+      );
+      return res.status(429).json({ error: 'Too many failed attempts. Try again in 15 minutes.' });
+    }
+
+    const user = db.data.users.find(item => item.email === email);
+    if (!user || !user.active || !verifyPassword(password, user.password_hash)) {
+      const next = { count: (attempt?.count ?? 0) + 1, lockedUntil: 0 };
+      if (next.count >= MAX_LOGIN_ATTEMPTS) next.lockedUntil = Date.now() + LOCKOUT_MS;
+      loginAttempts.set(email, next);
+      db.logAudit(
+        email || 'unknown',
+        'LOGIN_FAILED',
+        'AUTH',
+        user?.id || '',
+        null,
+        null,
+        'Invalid credentials',
+        auditMeta(req, user?.role, 'failure')
+      );
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    loginAttempts.delete(email);
+    user.last_login_at = new Date().toISOString();
+    user.updated_at = user.last_login_at;
+    const sessionId = createSession(user, req);
+    db.save();
+    db.logAudit(
+      user.email,
+      'LOGIN_SUCCESS',
+      'AUTH',
+      user.id,
+      null,
+      null,
+      'Signed in',
+      auditMeta(req, user.role)
+    );
+    res.setHeader('Set-Cookie', buildSessionCookie(sessionId, SESSION_SECURE));
+    return res.json({ user: sanitizeUser(user) });
+  });
+
+  app.post('/auth/logout', (req: Request, res: Response) => {
+    const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    const session = db.data.sessions.find(item => item.id === sessionId);
+    if (session) {
+      const user = db.data.users.find(item => item.id === session.user_id);
+      db.data.sessions = db.data.sessions.filter(item => item.id !== sessionId);
+      db.save();
+      if (user) {
+        db.logAudit(
+          user.email,
+          'LOGOUT',
+          'AUTH',
+          user.id,
+          null,
+          null,
+          'Signed out',
+          auditMeta(req, user.role)
+        );
+      }
+    }
+    res.setHeader('Set-Cookie', clearSessionCookie(SESSION_SECURE));
+    res.json({ success: true });
+  });
+
+  const requireAuth: express.RequestHandler = (req, res, next) => {
+    const user = findSessionUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    req.user = user;
+    return next();
+  };
+
+  const authorize: express.RequestHandler = (req, res, next) => {
+    const user = req.user!;
+    const required = requiredRolesFor(req.method, req.originalUrl.split('?')[0]);
+    if (!required || required.includes(user.role)) return next();
+
+    db.logAudit(
+      user.email,
+      'ACCESS_DENIED',
+      'API',
+      `${req.method} ${req.originalUrl.split('?')[0]}`,
+      null,
+      null,
+      `Role ${user.role} attempted a restricted action`,
+      auditMeta(req, user.role, 'failure')
+    );
+    return res.status(403).json({ error: 'You do not have permission to perform this action.' });
+  };
+
   // API Router
   const api = express.Router();
+
+  api.use(requireAuth);
+  api.use(authorize);
+
+  api.get('/me', (req: Request, res: Response) => {
+    res.json({ user: req.user });
+  });
+
+  api.post('/me/password', (req: Request, res: Response) => {
+    const record = db.data.users.find(item => item.id === req.user!.id);
+    if (!record) return res.status(404).json({ error: 'User not found.' });
+
+    const currentPassword = String(req.body?.current_password ?? '');
+    const newPassword = String(req.body?.new_password ?? '');
+    if (!verifyPassword(currentPassword, record.password_hash)) {
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+    }
+    const policyError = validatePassword(newPassword, record.email);
+    if (policyError) return res.status(400).json({ error: policyError });
+
+    record.password_hash = hashPassword(newPassword);
+    record.must_change_password = false;
+    record.updated_at = new Date().toISOString();
+    const currentSessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    db.data.sessions = db.data.sessions.filter(
+      session => session.user_id !== record.id || session.id === currentSessionId
+    );
+    db.save();
+    db.logAudit(
+      record.email,
+      'PASSWORD_CHANGED',
+      'AUTH',
+      record.id,
+      null,
+      null,
+      'Password changed by the user',
+      auditMeta(req, record.role)
+    );
+    return res.json({ success: true });
+  });
+
+  // Directory for assignment pickers and the admin user screen.
+  api.get('/users', (req: Request, res: Response) => {
+    const includeInactive = req.query.all === '1' && req.user!.role === 'admin';
+    const users = db.data.users
+      .filter(user => includeInactive || user.active)
+      .map(sanitizeUser);
+    res.json(users);
+  });
+
+  api.post('/users', (req: Request, res: Response) => {
+    const email = normalizeEmail(req.body?.email);
+    const name = cleanString(req.body?.name) || email;
+    const role = req.body?.role;
+    const password = String(req.body?.password ?? '');
+    if (!email.includes('@')) return res.status(400).json({ error: 'A valid email is required.' });
+    if (!isRole(role)) return res.status(400).json({ error: 'Role must be viewer, analyst, manager or admin.' });
+    if (db.data.users.some(user => user.email === email)) {
+      return res.status(409).json({ error: 'A user with that email already exists.' });
+    }
+    const policyError = validatePassword(password, email);
+    if (policyError) return res.status(400).json({ error: policyError });
+
+    const now = new Date().toISOString();
+    const user: UserRecord = {
+      id: crypto.randomUUID(),
+      email,
+      name,
+      role,
+      password_hash: hashPassword(password),
+      active: true,
+      must_change_password: true,
+      created_at: now,
+      updated_at: now,
+    };
+    db.data.users.push(user);
+    db.save();
+    db.logAudit(
+      req.user!.email,
+      'USER_CREATED',
+      'USER',
+      user.id,
+      null,
+      sanitizeUser(user),
+      `Created ${role} user ${email}`,
+      auditMeta(req, req.user!.role)
+    );
+    res.status(201).json(sanitizeUser(user));
+  });
+
+  api.patch('/users/:id', (req: Request, res: Response) => {
+    const user = db.data.users.find(item => item.id === req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const nextRole = req.body?.role;
+    const nextActive = req.body?.active;
+    if (nextRole !== undefined && !isRole(nextRole)) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+    const demotingLastAdmin =
+      user.role === 'admin' &&
+      (nextRole !== undefined && nextRole !== 'admin' || nextActive === false) &&
+      db.data.users.filter(item => item.active && item.role === 'admin').length <= 1;
+    if (demotingLastAdmin) {
+      return res.status(400).json({ error: 'The last active administrator cannot be demoted or disabled.' });
+    }
+    if (user.id === req.user!.id && nextActive === false) {
+      return res.status(400).json({ error: 'You cannot disable your own account.' });
+    }
+
+    const before = sanitizeUser(user);
+    if (req.body?.name !== undefined) user.name = cleanString(req.body.name) || user.name;
+    if (nextRole !== undefined) user.role = nextRole;
+    if (nextActive !== undefined) user.active = Boolean(nextActive);
+    user.updated_at = new Date().toISOString();
+    if (!user.active) {
+      db.data.sessions = db.data.sessions.filter(session => session.user_id !== user.id);
+    }
+    db.save();
+    db.logAudit(
+      req.user!.email,
+      'USER_UPDATED',
+      'USER',
+      user.id,
+      before,
+      sanitizeUser(user),
+      `Updated user ${user.email}`,
+      auditMeta(req, req.user!.role)
+    );
+    res.json(sanitizeUser(user));
+  });
+
+  api.post('/users/:id/reset-password', (req: Request, res: Response) => {
+    const user = db.data.users.find(item => item.id === req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    const password = String(req.body?.password ?? '');
+    const policyError = validatePassword(password, user.email);
+    if (policyError) return res.status(400).json({ error: policyError });
+
+    user.password_hash = hashPassword(password);
+    user.must_change_password = true;
+    user.updated_at = new Date().toISOString();
+    db.data.sessions = db.data.sessions.filter(session => session.user_id !== user.id);
+    db.save();
+    db.logAudit(
+      req.user!.email,
+      'PASSWORD_RESET',
+      'USER',
+      user.id,
+      null,
+      null,
+      `Reset password for ${user.email}`,
+      auditMeta(req, req.user!.role)
+    );
+    res.json({ success: true });
+  });
 
   // 1. STATS / DASHBOARD METRICS (dynamically calculated)
   api.get('/stats', (req: Request, res: Response) => {
@@ -688,9 +1116,12 @@ async function startServer() {
       .filter(s => s.id !== server.id && s.manager && s.manager.toLowerCase() === server.manager.toLowerCase())
       .map(s => ({ id: s.id, host: s.host, vm: s.vm, bu: s.business_unit }));
 
-    const history = db.data.audit_logs.filter(
-      l => l.entity_id === server.id || (l.details && l.details.includes(server.host))
-    );
+    const history =
+      req.user?.role === 'viewer'
+        ? []
+        : db.data.audit_logs.filter(
+            l => l.entity_id === server.id || (l.details && l.details.includes(server.host))
+          );
 
     res.json({
       server,
@@ -719,7 +1150,7 @@ async function startServer() {
 
     db.data.servers.unshift(newServer);
     db.save();
-    db.logAudit(body.updated_by || 'SecOps Admin', 'CREATE_SERVER', 'SERVER', newServer.id, null, newServer, `Created server ${newServer.host} (${newServer.vm})`);
+    db.logAudit(req.user?.email || body.updated_by || 'system', 'CREATE_SERVER', 'SERVER', newServer.id, null, newServer, `Created server ${newServer.host} (${newServer.vm})`);
     res.status(201).json(newServer);
   });
 
@@ -739,7 +1170,7 @@ async function startServer() {
 
     db.data.servers[idx] = updated;
     db.save();
-    db.logAudit(req.body.updated_by || 'SecOps Admin', 'UPDATE_SERVER', 'SERVER', updated.id, prev, updated, `Updated attributes for ${updated.host}`);
+    db.logAudit(req.user?.email || req.body.updated_by || 'system', 'UPDATE_SERVER', 'SERVER', updated.id, prev, updated, `Updated attributes for ${updated.host}`);
     res.json(updated);
   });
 
@@ -749,7 +1180,7 @@ async function startServer() {
       return res.status(404).json({ error: 'Server not found' });
     }
     const removed = db.data.servers.splice(idx, 1)[0];
-    db.logAudit('SecOps Admin', 'DELETE_SERVER', 'SERVER', removed.id, removed, null, `Deleted server ${removed.host}`);
+    db.logAudit(req.user?.email ?? 'system', 'DELETE_SERVER', 'SERVER', removed.id, removed, null, `Deleted server ${removed.host}`);
     res.json({ success: true, removed });
   });
 
@@ -1156,7 +1587,7 @@ async function startServer() {
     };
 
     db.data.incidents.unshift(newInc);
-    db.logAudit(body.user || 'SecOps', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference} with ${newInc.affected_server_ids.length} host(s)`);
+    db.logAudit(req.user?.email || body.user || 'system', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference} with ${newInc.affected_server_ids.length} host(s)`);
     res.status(201).json(newInc);
   });
 
@@ -1179,7 +1610,7 @@ async function startServer() {
     };
 
     db.data.incidents[idx] = updated;
-    db.logAudit('SecOps', 'UPDATE_INCIDENT', 'INCIDENT', updated.id, prev, updated, `Updated ${updated.incident_reference}`);
+    db.logAudit(req.user?.email ?? 'system', 'UPDATE_INCIDENT', 'INCIDENT', updated.id, prev, updated, `Updated ${updated.incident_reference}`);
     res.json(updated);
   });
 
@@ -1189,14 +1620,26 @@ async function startServer() {
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
     const serverId = req.params.serverId;
     inc.host_details = inc.host_details || {};
+    const before = inc.host_details[serverId] ? { ...inc.host_details[serverId] } : null;
     inc.host_details[serverId] = {
       ...(inc.host_details[serverId] || { server_id: serverId, status: 'To be contacted', notes: '' }),
       ...req.body,
       server_id: serverId,
+      updated_by: req.user?.email,
       updated_at: new Date().toISOString(),
     };
     inc.updated_at = new Date().toISOString();
     db.save();
+    db.logAudit(
+      req.user?.email ?? 'system',
+      'UPDATE_INCIDENT_HOST',
+      'INCIDENT',
+      inc.id,
+      before,
+      inc.host_details[serverId],
+      `Updated host ${serverId} in ${inc.incident_reference}`,
+      auditMeta(req, req.user?.role)
+    );
     res.json(inc.host_details[serverId]);
   });
 
@@ -1255,7 +1698,7 @@ async function startServer() {
     inc.updated_at = new Date().toISOString();
     db.save();
 
-    db.logAudit('SecOps', 'ADD_INCIDENT_SERVERS', 'INCIDENT', inc.id, null, null, `Added ${matchedServers.length} affected servers to ${inc.incident_reference}`);
+    db.logAudit(req.user?.email ?? 'system', 'ADD_INCIDENT_SERVERS', 'INCIDENT', inc.id, null, null, `Added ${matchedServers.length} affected servers to ${inc.incident_reference}`);
 
     res.json({
       incident: inc,
@@ -1279,7 +1722,7 @@ async function startServer() {
     }
     inc.updated_at = new Date().toISOString();
     db.save();
-    db.logAudit('SecOps', 'REMOVE_INCIDENT_SERVER', 'INCIDENT', inc.id, null, null, `Removed server ${serverId} from ${inc.incident_reference}`);
+    db.logAudit(req.user?.email ?? 'system', 'REMOVE_INCIDENT_SERVER', 'INCIDENT', inc.id, null, null, `Removed server ${serverId} from ${inc.incident_reference}`);
 
     res.json({ success: true, remaining: inc.affected_server_ids.length });
   });
@@ -1433,7 +1876,7 @@ async function startServer() {
     };
 
     db.data.patch_campaigns.unshift(campaign);
-    db.logAudit(body.user || 'SecOps', 'CREATE_CAMPAIGN', 'CAMPAIGN', campaign.id, null, campaign, `Created patch campaign ${campaign.campaign_name}`);
+    db.logAudit(req.user?.email || body.user || 'system', 'CREATE_CAMPAIGN', 'CAMPAIGN', campaign.id, null, campaign, `Created patch campaign ${campaign.campaign_name}`);
     res.status(201).json(campaign);
   });
 
@@ -1502,7 +1945,7 @@ async function startServer() {
     campaign.updated_at = new Date().toISOString();
     db.save();
 
-    db.logAudit('SecOps', 'UPDATE_PATCH_STATUS', 'CAMPAIGN', campaign.id, prevTarget, campaign.targets[serverId], `Updated server ${serverId} status to ${req.body.status}`);
+    db.logAudit(req.user?.email ?? 'system', 'UPDATE_PATCH_STATUS', 'CAMPAIGN', campaign.id, prevTarget, campaign.targets[serverId], `Updated server ${serverId} status to ${req.body.status}`);
     res.json(campaign.targets[serverId]);
   });
 
@@ -1707,7 +2150,8 @@ async function startServer() {
   });
 
   api.post('/imports/execute', (req: Request, res: Response) => {
-    const { csv_content, filename = 'import.csv', strategy = 'update', user = 'SecOps Admin' } = req.body;
+    const { csv_content, filename = 'import.csv', strategy = 'update' } = req.body;
+    const user = req.user?.email || 'system';
     if (!csv_content) return res.status(400).json({ error: 'No CSV content provided' });
 
     const incoming = parseCsvToServers(csv_content);
@@ -1807,7 +2251,7 @@ async function startServer() {
     };
 
     db.data.import_history.unshift(historyItem);
-    db.logAudit(user, 'IMPORT_CSV', 'INVENTORY', historyItem.id, null, null, `Imported ${incoming.length} records (${strategy}): ${newCount} new, ${updatedCount} updated`);
+    db.logAudit(req.user?.email || user || 'system', 'IMPORT_CSV', 'INVENTORY', historyItem.id, null, null, `Imported ${incoming.length} records (${strategy}): ${newCount} new, ${updatedCount} updated`);
     db.save();
 
     res.json({

@@ -98,6 +98,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 
 ## 6. Gotchas and guardrails
 
+- Viewers can read and export inventory, but the bulk **Incident Impact** and **Contact List** actions are disabled; viewers do not have access to the Incidents pages.
 - Filters persist when you leave and return. Clicking the sidebar "Inventory" or the navbar assets pill passes no filter dictionary, and `App` only replaces filters when one is supplied — so the previous chips are still applied.
 - A filter dictionary replaces the previous one wholesale; it never merges. Navigating in from Products with `product=X` drops a business unit filter you had set by hand.
 - Selecting values is single-select per column even though `/api/servers` accepts comma-separated lists. Multi-value filters can only arrive by URL or by another view.

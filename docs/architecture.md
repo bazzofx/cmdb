@@ -34,8 +34,12 @@ There is no separate frontend server, no router library and no database server. 
 | `server.ts` | Entire backend: schema, seeding, CSV parsing, all REST routes, static hosting |
 | `src/App.tsx` | Global shell, view switch, cross-view state (filters, selected server, incident counts) |
 | `src/components/layout/` | `Navbar`, `Sidebar` |
+| `src/components/auth/` | `LoginView`, `ChangePasswordModal` |
+| `src/components/settings/` | `UsersPanel` (admin role management) |
 | `src/components/views/` | One component per page (12 views) |
 | `src/components/common/` | `GlobalSearch`, `ServerDetailDrawer` |
+| `src/context/AuthContext.tsx` | Session state, login/logout and 401 handling |
+| `auth.ts` | scrypt password hashing, sessions, cookies, role policy |
 | `src/services/api.ts` | Typed `fetch` wrapper with one shared `request()` helper; the only place URLs are built |
 | `src/services/reportEngine.ts` | Report definitions, builders, summaries, CSV/JSON serialisation |
 | `src/services/incidentAnalysis.ts` | Canonical incident metrics/breakdowns shared by triage, archive and report export |
@@ -120,10 +124,19 @@ Every run writes one `IMPORT_CSV` audit event and one `ImportHistoryItem`.
 
 ## 5. API surface
 
-All routes are mounted under `/api` and have no authentication.
+Every API route requires a valid session. Authentication is local by default (`AUTH_MODE=local`); `disabled` is development-only and refused in production, and `ldap` is reserved for the future directory integration.
+
+Authentication routes are outside `/api`:
+
+| Route | Purpose |
+|---|---|
+| `POST /auth/login` | Email + password, creates the session cookie |
+| `POST /auth/logout` | Destroys the session |
 
 | Area | Routes |
 |---|---|
+| Current user | `GET /api/me`, `POST /api/me/password` |
+| Users | `GET /api/users`, `POST /api/users`, `PATCH /api/users/:id`, `POST /api/users/:id/reset-password` |
 | Metrics | `GET /stats` |
 | Servers | `GET /servers` (filters: `business_unit`, `sub_business_unit`, `customer`, `manager`, `support_team`, `environment`, `power_state`, `datacenter`, `product`, `function`, `secure_boot`, `network`, `host`, `vm`, `primary_ip_address`, `email`, `dns_name`, `q`, `sort_by`, `sort_order`, `page`, `limit`), `GET /servers/search?q=`, `GET /servers/:id`, `POST /servers`, `PUT /servers/:id`, `DELETE /servers/:id` |
 | Business units | `GET /business-units`, `GET /business-units/:name` |
@@ -183,7 +196,9 @@ These are real constraints, not roadmap promises:
 
 | Limitation | Effect |
 |---|---|
-| **No authentication or authorisation** | Every API route is open; the "RBAC Enforced" card in Settings is display-only |
+| **Local auth only** | Roles are enforced, but LDAP/SSO is not implemented yet; `AUTH_MODE=ldap` fails fast |
+| **Sessions in JSON** | Sessions and users share the JSON database; fine for ten users, not for horizontal scaling |
+| **Audit is operational, not tamper-proof** | Audit events are capped and stored in an editable JSON file; ship them to a SIEM for evidence |
 | Single JSON file, synchronous writes | Not safe for multiple processes or large estates; every write blocks the event loop briefly |
 | In-memory arrays | No pagination at the storage layer; endpoints load and filter everything |
 | 1,000-row client caps | Inventory option counts and Reports load at most 1,000 servers; larger estates truncate silently |
@@ -199,7 +214,8 @@ These are real constraints, not roadmap promises:
 npm run lint             # tsc --noEmit across app, server and scripts
 npm run verify:reports   # builds all 12 reports and asserts their semantics
 npm run verify:incidents # asserts the shared patched/communicated/documentation rules
-npm run verify           # both of the above
+npm run verify:auth      # password hashing, cookie and role-policy checks
+npm run verify           # all three suites
 npm run build            # production bundle
 ```
 
