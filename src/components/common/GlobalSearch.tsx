@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Server, Building2, User, Globe, Network as NetIcon, ArrowRight, X } from 'lucide-react';
+import { Search, Server, Building2, User, Globe, ArrowRight, X } from 'lucide-react';
 import { api } from '../../services/api.js';
 
 interface GlobalSearchProps {

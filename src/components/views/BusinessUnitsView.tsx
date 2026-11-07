@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Building2,
   Users,
-  Server,
   Layers,
   Database,
   Network,
@@ -10,10 +9,6 @@ import {
   ArrowLeft,
   Search,
   ExternalLink,
-  ShieldCheck,
-  Cpu,
-  Mail,
-  Filter,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import type { ServerRecord } from '../../types/index.js';

@@ -1,16 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Server,
   Building2,
-  Users,
   ShieldCheck,
   TriangleAlert,
-  HardDrive,
   Activity,
   ArrowUpRight,
-  Clock,
-  Layers,
-  Database,
   Calendar,
   ChevronDown,
   Package,
@@ -48,27 +43,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     );
   }
 
-  // Fallback product breakdown if not yet in metrics
-  const productBreakdown = metrics.servers_by_product && metrics.servers_by_product.length > 0
-    ? metrics.servers_by_product
-    : [
-        { name: 'NDM', count: 5 },
-        { name: 'Housing', count: 3 },
-        { name: 'Pulse VTM', count: 1 },
-      ];
+  const productBreakdown = metrics.servers_by_product ?? [];
 
-  const totalProductCount = metrics.total_products || productBreakdown.length || 3;
-  const totalServers = metrics.total_servers || 9;
-  const poweredOnCount = metrics.powered_on_servers ?? 9;
+  const totalProductCount = metrics.total_products ?? productBreakdown.length;
+  const totalServers = metrics.total_servers;
+  const poweredOnCount = metrics.powered_on_servers ?? 0;
   const poweredOffCount = metrics.powered_off_servers ?? 0;
   const poweredOnPct = Math.round((poweredOnCount / (totalServers || 1)) * 100);
   const poweredOffPct = 100 - poweredOnPct;
 
-  const secureBootEnabled = metrics.secure_boot_status?.find(s => s.name === 'Enabled')?.count ?? 6;
-  const secureBootDisabled = metrics.secure_boot_status?.find(s => s.name === 'Disabled')?.count ?? 3;
+  const secureBootEnabled = metrics.secure_boot_status?.find(s => s.name === 'Enabled')?.count ?? 0;
+  const secureBootDisabled = metrics.secure_boot_status?.find(s => s.name === 'Disabled')?.count ?? 0;
   const secureBootPct = Math.round((secureBootEnabled / (totalServers || 1)) * 100);
 
-  const fullyAssigned = metrics.ownership_completeness?.fully_assigned ?? totalServers;
+  const fullyAssigned = metrics.ownership_completeness?.fully_assigned ?? 0;
   const ownershipPct = Math.round((fullyAssigned / (totalServers || 1)) * 100);
 
   return (

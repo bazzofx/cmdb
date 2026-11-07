@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Package,
   Server,
   User,
   Users,
   Building2,
-  Mail,
   Search,
   ExternalLink,
   ChevronDown,
@@ -15,8 +14,6 @@ import {
   CheckCircle2,
   Check,
   Copy,
-  Layers,
-  Filter,
   RefreshCw,
 } from 'lucide-react';
 import { api } from '../../services/api.js';

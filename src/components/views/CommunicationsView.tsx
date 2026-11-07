@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Mail,
   Copy,
   Check,
-  Send,
   Users,
-  Building2,
   FileText,
   AlertTriangle,
   Download,
-  Filter,
-  CheckCircle,
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue.js';
+import { downloadCsv } from '../../utils/export.js';
+import { todayIso } from '../../utils/format.js';
 
 interface CommunicationsViewProps {
   initialServerIds?: string[];
@@ -30,7 +29,6 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
     preview: { subject: string; body: string };
   } | null>(null);
 
-  const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<'incident' | 'vulnerability' | 'patching' | 'maintenance' | 'ownership'>('incident');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
 
@@ -40,23 +38,28 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
   const [severity, setSeverity] = useState('Critical');
   const [targetDate, setTargetDate] = useState('2026-11-15');
 
+  // Free-text fields are debounced so editing an incident reference does not
+  // POST /communications/preview on every keystroke.
+  const debouncedIncidentRef = useDebouncedValue(incidentRef, 400);
+  const debouncedIncidentTitle = useDebouncedValue(incidentTitle, 400);
+  const debouncedTargetDate = useDebouncedValue(targetDate, 400);
+
   // Contact selection checkboxes
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadPreview();
-  }, [selectedTemplate, incidentRef, incidentTitle, severity, targetDate, initialServerIds]);
+  }, [selectedTemplate, debouncedIncidentRef, debouncedIncidentTitle, severity, debouncedTargetDate, initialServerIds]);
 
   const loadPreview = async () => {
-    setLoading(true);
     try {
       const res = await api.previewCommunications({
         server_ids: initialServerIds,
         template_type: selectedTemplate,
-        incident_reference: incidentRef,
-        incident_title: incidentTitle,
+        incident_reference: debouncedIncidentRef,
+        incident_title: debouncedIncidentTitle,
         severity,
-        target_date: targetDate,
+        target_date: debouncedTargetDate,
       });
       setData(res);
 
@@ -65,8 +68,6 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
       setSelectedEmails(valid);
     } catch (err) {
       console.error('Failed to load communications preview:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -100,19 +101,13 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
     if (!data) return;
     const headers = ['Business Unit', 'Manager', 'Email', 'Affected Servers', 'Support Team'];
     const rows = data.contacts.map(c => [
-      `"${c.business_unit}"`,
-      `"${c.manager}"`,
-      `"${c.email || 'MISSING'}"`,
+      c.business_unit,
+      c.manager,
+      c.email || 'MISSING',
       c.server_count,
-      `"${c.support_team}"`,
+      c.support_team,
     ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stakeholder_contacts_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    downloadCsv(`stakeholder_contacts_${todayIso()}.csv`, headers, rows);
   };
 
   const toggleSelectEmail = (email: string) => {
@@ -122,16 +117,6 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
       else next.add(email);
       return next;
     });
-  };
-
-  const toggleSelectAll = () => {
-    if (!data) return;
-    if (selectedEmails.size > 0) {
-      setSelectedEmails(new Set());
-    } else {
-      const all = new Set(data.contacts.filter(c => !c.missing_email).map(c => c.email));
-      setSelectedEmails(all);
-    }
   };
 
   const openMailto = () => {

@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "verify:reports": "tsx scripts/verify-reports.ts"
+    "verify:reports": "tsx scripts/verify-reports.ts",
+    "verify:incidents": "tsx scripts/verify-incident-analysis.ts",
+    "verify": "npm run verify:reports && npm run verify:incidents"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -36,14 +36,20 @@ There is no separate frontend server, no router library and no database server. 
 | `src/components/layout/` | `Navbar`, `Sidebar` |
 | `src/components/views/` | One component per page (12 views) |
 | `src/components/common/` | `GlobalSearch`, `ServerDetailDrawer` |
-| `src/services/api.ts` | Thin typed `fetch` wrapper; the only place URLs are built |
+| `src/services/api.ts` | Typed `fetch` wrapper with one shared `request()` helper; the only place URLs are built |
 | `src/services/reportEngine.ts` | Report definitions, builders, summaries, CSV/JSON serialisation |
-| `src/services/incidentReportGenerator.ts` | Incident PDF/DOCX/Markdown export |
-| `src/services/incidentCharts.ts` | Inline-SVG chart generators for the incident report |
+| `src/services/incidentAnalysis.ts` | Canonical incident metrics/breakdowns shared by triage, archive and report export |
+| `src/services/incidentReportExport.ts` | One Markdown/Word/PDF export entry point |
+| `src/services/incidentReportGenerator.ts` | Incident PDF/DOCX/Markdown document builders |
+| `src/services/incidentCharts.ts` | Canvas chart generators for the incident report |
+| `src/utils/format.ts` | Shared percentage, list, date and unique-value helpers |
+| `src/utils/export.ts` | Shared CSV serialisation and browser download helpers |
+| `src/hooks/useDebouncedValue.ts` | Search/input debounce used by Inventory and Communications |
 | `src/types/index.ts` | Shared domain types (server, incident, campaign, metrics, audit) |
 | `data/csm_database.json` | The database |
 | `public/assets/aistudio/` | Seed CSV and mockup assets |
 | `scripts/verify-reports.ts` | Semantic checks for all 12 reports (`npm run verify:reports`) |
+| `scripts/verify-incident-analysis.ts` | Fixture checks for the shared incident rules (`npm run verify:incidents`) |
 
 ## 3. Data model
 
@@ -131,7 +137,7 @@ All routes are mounted under `/api` and have no authentication.
 | Imports | `POST /imports/preview`, `POST /imports/execute`, `GET /imports/history` |
 | Audit / seed | `GET /audit-logs`, `POST /seed/reset` |
 
-`PUT /incidents/:id/hosts/:serverId` is registered twice in `server.ts`; the first registration handles every request and the second is unreachable. Treat the first as authoritative until the duplicate is removed.
+`PUT /incidents/:id/hosts/:serverId` has a single canonical handler which matches an incident by ID or reference and upserts the host detail.
 
 ## 6. Frontend composition
 
@@ -184,17 +190,19 @@ These are real constraints, not roadmap promises:
 | Name-based relations | Renaming a BU/product/datacenter splits history instead of migrating it |
 | No router / no URL state | Filtered views cannot be bookmarked or shared; refresh returns to Overview |
 | No automated UI tests | Verification covers reports and typechecking, not rendering |
-| Duplicate route registration | `PUT /incidents/:id/hosts/:serverId` has a dead second handler |
+| No shared data cache | Each view remounts and refetches its datasets; mutations rely on explicit refreshes |
 | No send capability | Communications previews text only; nothing is emailed or persisted |
 
 ## 10. Verification
 
 ```bash
-npm run lint            # tsc --noEmit across app, server and scripts
-npm run verify:reports  # builds all 12 reports and asserts their semantics
-npm run build           # production bundle
+npm run lint             # tsc --noEmit across app, server and scripts
+npm run verify:reports   # builds all 12 reports and asserts their semantics
+npm run verify:incidents # asserts the shared patched/communicated/documentation rules
+npm run verify           # both of the above
+npm run build            # production bundle
 ```
 
-`verify:reports` reads `data/csm_database.json`, so it validates the same data the app will serve. It also exercises synthetic fixtures for ownership gaps, closed incidents, overdue patch targets and an empty database.
+`verify:reports` reads `data/csm_database.json`, so it validates the same data the app will serve. It also exercises synthetic fixtures for ownership gaps, closed incidents, overdue patch targets and an empty database. `verify:incidents` covers the canonical incident rules, breakdown totals and Markdown report generation.
 
 Related reading: [Operations runbook](./operations-runbook.md) and [Reports](./pages/10-reports.md).

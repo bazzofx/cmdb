@@ -108,7 +108,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 - The `business_unit` filter also matches `sub_business_unit` values, and the `sub_business_unit` filter also matches `business_unit` values. A filter can therefore return more than its label implies.
 - `annotation` has no handler in `/api/servers`, so that column filter is sent and silently ignored; `host` is an exact match, unlike the free-text `q` search.
 - Filter keys inherited from Overview — `ownership=missing` and `email=missing` — do not behave usefully: the first is unknown to the API and the second is an equality match that finds nothing.
-- Searching sends a request on every keystroke; there is no debounce. Very broad terms on a large estate will queue requests.
+- Searching is debounced by 350 ms, so typing a hostname sends one request rather than one per keystroke. Responses are not cancelled, so a slow earlier request can still land after a newer one.
 - No state is reflected in the URL, so a filtered view cannot be bookmarked or shared as a link.
 - Sorting is a lowercase string compare server-side; booleans and `null` secure-boot values sort unpredictably.
 
@@ -141,7 +141,7 @@ Four effects: (1) on mount, `api.getServers({ limit: 1000 })` fills `allServers`
 
 Filters it receives from elsewhere, and the exact keys: Overview sends `power_state` (`poweredOn`/`poweredOff`), `secure_boot` (`TRUE`/`FALSE`), `business_unit`, `product`, `environment`, `ownership`, `email`; Business Units sends `business_unit`, `manager`, `network`; Products sends `product`. `App` wires the same `onFilterInventory` callback into Infrastructure Map as well, but the keys that view sends are outside this page's scope.
 
-**Extension points and known rough edges.** Synchronise filter and page state to the URL for shareable links; debounce `q`; make CSV export operate on the full filtered set (or say "page" in the UI); reset `selectedIds` when filters change; carry off-page selections into copy and CSV by fetching by ID; either implement an `annotation` filter server-side or remove it from the column list; add a placeholder when `allServers` is capped at 1,000; and remove the write-only `filterOptions` state.
+**Extension points and known rough edges.** Synchronise filter and page state to the URL for shareable links; make CSV export operate on the full filtered set (or say "page" in the UI); reset `selectedIds` when filters change; carry off-page selections into copy and CSV by fetching by ID; either implement an `annotation` filter server-side or remove it from the column list; and add a placeholder when `allServers` is capped at 1,000.
 
 ## 8. Related pages
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   FolderArchive,
   RotateCcw,
@@ -7,26 +7,13 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Server,
-  Building2,
-  Package,
-  Users,
-  ShieldAlert,
-  Calendar,
-  ExternalLink,
   ChevronDown,
-  ChevronRight,
   Search,
-  Filter,
-  AlertTriangle,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
-import type { Incident, IncidentImpact, ServerRecord, IncidentHostDetail } from '../../types/index.js';
-import {
-  generateMarkdownReport,
-  generateWordDocx,
-  generatePdfReport,
-  type ReportData,
-} from '../../services/incidentReportGenerator.js';
+import type { Incident, IncidentImpact, IncidentHostDetail } from '../../types/index.js';
+import { analyseIncident, buildIncidentReportData } from '../../services/incidentAnalysis.js';
+import { exportIncidentReport } from '../../services/incidentReportExport.js';
 
 interface ArchivedIncidentsViewProps {
   onSelectServer: (id: string) => void;
@@ -42,7 +29,6 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
   const [archivedIncidents, setArchivedIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [impact, setImpact] = useState<IncidentImpact | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +39,6 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
   }, []);
 
   const loadArchivedIncidents = async () => {
-    setLoading(true);
     try {
       const data = await api.getIncidents();
       const closed = data.filter(i => i.status === 'Closed' || i.status === 'Archived');
@@ -63,8 +48,6 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
       }
     } catch (err) {
       console.error('Failed to load archived incidents:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -80,84 +63,25 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
 
   const selectedIncident = archivedIncidents.find(i => i.id === selectedIncidentId);
   const hostDetails: Record<string, IncidentHostDetail> = selectedIncident?.host_details || {};
-  const affectedList = impact?.affected_servers || [];
+  const affectedList = useMemo(() => impact?.affected_servers ?? [], [impact]);
   const totalServers = affectedList.length;
 
-  // Breakdown calculations
-  const buBreakdown = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; patched: number; communicated: number }>();
-    affectedList.forEach(s => {
-      const bu = s.business_unit || 'Unassigned';
-      if (!map.has(bu)) {
-        map.set(bu, { name: bu, total: 0, patched: 0, communicated: 0 });
-      }
-      const item = map.get(bu)!;
-      item.total++;
-      const d = hostDetails[s.id];
-      if (d?.status === 'Patched' || d?.status === 'Patch' || d?.patching_status === 'Patched' || d?.patching_status === 'Validated') {
-        item.patched++;
-      }
-      if (d?.status === 'Contacted' || d?.communicated) {
-        item.communicated++;
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [affectedList, hostDetails]);
-
-  const productBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    affectedList.forEach(s => {
-      const p = s.product || 'Unassigned';
-      counts[p] = (counts[p] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [affectedList]);
-
-  const managerAccountability = useMemo(() => {
-    const map = new Map<string, { name: string; email: string; total: number; patched: number }>();
-    affectedList.forEach(s => {
-      const mgr = s.manager || 'Unassigned';
-      if (!map.has(mgr)) {
-        map.set(mgr, { name: mgr, email: s.email || '', total: 0, patched: 0 });
-      }
-      const item = map.get(mgr)!;
-      item.total++;
-      const d = hostDetails[s.id];
-      if (d?.patching_status === 'Patched' || d?.patching_status === 'Validated') {
-        item.patched++;
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [affectedList, hostDetails]);
-
-  // Overall counts
-  const patchedCount = useMemo(() => {
-    let count = 0;
-    affectedList.forEach(s => {
-      const d = hostDetails[s.id];
-      if (d?.status === 'Patched' || d?.status === 'Patch' || d?.patching_status === 'Patched' || d?.patching_status === 'Validated') {
-        count++;
-      }
-    });
-    return count;
-  }, [affectedList, hostDetails]);
-
-  const patchedPct = totalServers > 0 ? Math.round((patchedCount / totalServers) * 100) : 0;
-
-  const commCount = useMemo(() => {
-    return affectedList.filter(s => hostDetails[s.id]?.communicated || hostDetails[s.id]?.status === 'Contacted').length;
-  }, [affectedList, hostDetails]);
-
-  const notesCount = useMemo(() => {
-    return affectedList.filter(s => {
-      const d = hostDetails[s.id];
-      return Boolean((d?.notes && d.notes.trim().length > 0) || d?.patch_engineer || d?.ticket_number);
-    }).length;
-  }, [affectedList, hostDetails]);
-
-  const isolatedCount = useMemo(() => {
-    return affectedList.filter(s => hostDetails[s.id]?.status === 'Isolated').length;
-  }, [affectedList, hostDetails]);
+  // One shared definition of patched / communicated / documented for both the
+  // active triage page and this archive.
+  const analysis = useMemo(
+    () => analyseIncident(affectedList, hostDetails),
+    [affectedList, hostDetails]
+  );
+  const {
+    buBreakdown,
+    productBreakdown,
+    managerAccountability,
+    patchedCount,
+    patchedPct,
+    communicatedCount: commCount,
+    hasNotesCount: notesCount,
+    isolatedCount,
+  } = analysis;
 
   // Reopen handler
   const handleReopen = async () => {
@@ -182,42 +106,16 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
     }
   };
 
-  // Report Export Handlers
-  const getReportPayload = (): ReportData | null => {
-    if (!selectedIncident) return null;
-    return {
-      incident: selectedIncident,
-      impact,
-      affectedList,
-      hostDetails,
-      metrics: {
-        totalServers,
-        patchedCount,
-        patchedPct,
-        communicatedCount: commCount,
-        communicatedPct: totalServers > 0 ? Math.round((commCount / totalServers) * 100) : 0,
-        hasNotesCount: notesCount,
-        hasNotesPct: totalServers > 0 ? Math.round((notesCount / totalServers) * 100) : 0,
-        isolatedCount,
-      },
-      buBreakdown,
-      productBreakdown,
-      managerAccountability,
-    };
-  };
+  // Report export handlers (shared with the active triage page)
+  const getReportPayload = () =>
+    selectedIncident
+      ? buildIncidentReportData(selectedIncident, impact, affectedList, hostDetails, analysis)
+      : null;
 
   const handleExportMarkdown = () => {
     const payload = getReportPayload();
     if (!payload) return;
-    const md = generateMarkdownReport(payload);
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `incident_${payload.incident.incident_reference}_report.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    exportIncidentReport(payload, 'markdown');
     setExportDropdownOpen(false);
   };
 
@@ -226,14 +124,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
     if (!payload) return;
     setIsExporting(true);
     try {
-      const blob = await generateWordDocx(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `incident_${payload.incident.incident_reference}_report.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await exportIncidentReport(payload, 'word');
     } catch (err) {
       console.error('Word export failed:', err);
     } finally {
@@ -247,8 +138,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
     if (!payload) return;
     setIsExporting(true);
     try {
-      const doc = generatePdfReport(payload);
-      doc.save(`incident_${payload.incident.incident_reference}_report.pdf`);
+      exportIncidentReport(payload, 'pdf');
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {

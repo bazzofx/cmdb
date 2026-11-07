@@ -6,11 +6,6 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import type {
   ServerRecord,
-  BusinessUnit,
-  SubBusinessUnit,
-  Product,
-  Datacenter,
-  Network,
   Incident,
   IncidentImpact,
   PatchCampaign,
@@ -36,6 +31,62 @@ export function cleanString(val: any): string {
     .replace(/\r/g, '') // strip carriage returns
     .trim(); // trim leading and trailing whitespace
 }
+
+/** Parses a comma-separated query parameter into normalised match values. */
+export function parseFilterList(value: string): string[] {
+  return value.split(',').map(item => cleanString(item).toLowerCase()).filter(Boolean);
+}
+
+/** Case-insensitive equality against one or more candidate fields. */
+export function matchesAnyFilter(wanted: string[], candidates: Array<string | undefined>): boolean {
+  return wanted.some(value => candidates.some(candidate => cleanString(candidate).toLowerCase() === value));
+}
+
+/** Distinct, non-empty, trimmed string values in first-seen order. */
+export function uniqueValues<T>(items: T[], pick: (item: T) => string | undefined | null): string[] {
+  return Array.from(new Set(items.map(pick).map(cleanString).filter(Boolean)));
+}
+
+/** Convenience wrapper used by the metrics endpoints. */
+export function countUnique<T>(items: T[], pick: (item: T) => string | undefined | null): number {
+  return uniqueValues(items, pick).length;
+}
+
+/**
+ * Text fields searched by the inventory quick filter. Kept in one place so the
+ * table search and the global autocomplete cannot drift apart.
+ */
+const SERVER_SEARCH_FIELDS: Array<(server: ServerRecord) => string | undefined> = [
+  server => server.host,
+  server => server.vm,
+  server => server.dns_name,
+  server => server.primary_ip_address,
+  server => server.manager,
+  server => server.email,
+  server => server.customer,
+  server => server.business_unit,
+  server => server.sub_business_unit,
+  server => server.product,
+  server => server.function,
+  server => server.datacenter,
+  server => server.network_1,
+  server => server.network_2,
+  server => server.network_3,
+  server => server.organisation_short_code,
+];
+
+/** The global search box additionally matches support team and org abbreviation. */
+const SERVER_GLOBAL_SEARCH_FIELDS = [
+  ...SERVER_SEARCH_FIELDS,
+  (server: ServerRecord) => server.support_team,
+  (server: ServerRecord) => server.organisation_abbreviated,
+];
+
+const matchesServerSearch = (
+  server: ServerRecord,
+  query: string,
+  fields: Array<(server: ServerRecord) => string | undefined>
+): boolean => fields.some(field => (field(server) || '').toLowerCase().includes(query));
 
 export function sanitizeServerRecord(record: Partial<ServerRecord>): ServerRecord {
   return {
@@ -378,12 +429,12 @@ async function startServer() {
     const poweredOn = servers.filter(s => (s.power_state || '').toLowerCase() === 'poweredon').length;
     const poweredOff = total - poweredOn;
 
-    const buSet = new Set(servers.map(s => s.business_unit).filter(Boolean));
-    const subBuSet = new Set(servers.map(s => s.sub_business_unit).filter(Boolean));
-    const productSet = new Set(servers.map(s => s.product).filter(Boolean));
-    const supportTeamSet = new Set(servers.map(s => s.support_team).filter(Boolean));
-    const dcSet = new Set(servers.map(s => s.datacenter).filter(Boolean));
-    const managerSet = new Set(servers.map(s => s.manager).filter(Boolean));
+    const buCount = countUnique(servers, s => s.business_unit);
+    const subBuCount = countUnique(servers, s => s.sub_business_unit);
+    const productCount = countUnique(servers, s => s.product);
+    const supportTeamCount = countUnique(servers, s => s.support_team);
+    const dcCount = countUnique(servers, s => s.datacenter);
+    const managerCount = countUnique(servers, s => s.manager);
 
     const missingOwnership = servers.filter(s => !s.manager || !s.business_unit).length;
     const missingContact = servers.filter(s => !s.email).length;
@@ -406,12 +457,12 @@ async function startServer() {
       total_servers: total,
       powered_on_servers: poweredOn,
       powered_off_servers: poweredOff,
-      total_products: productSet.size,
-      total_business_units: buSet.size,
-      total_sub_business_units: subBuSet.size,
-      total_support_teams: supportTeamSet.size,
-      total_datacenters: dcSet.size,
-      total_unique_managers: managerSet.size,
+      total_products: productCount,
+      total_business_units: buCount,
+      total_sub_business_units: subBuCount,
+      total_support_teams: supportTeamCount,
+      total_datacenters: dcCount,
+      total_unique_managers: managerCount,
       servers_missing_ownership: missingOwnership,
       servers_missing_contact: missingContact,
       servers_without_secure_boot: secureBootDisabled,
@@ -468,116 +519,92 @@ async function startServer() {
       limit = '50',
     } = req.query as Record<string, string>;
 
-    // Multi-attribute filtering with cleanString sanitization
+    // Multi-attribute filtering. Every comma-separated value is matched
+    // case-insensitively; business_unit and sub_business_unit intentionally
+    // cross-match each other (a BU filter also accepts a sub-BU name).
     if (business_unit) {
-      const bus = business_unit.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => {
-        const bu = cleanString(s.business_unit).toLowerCase();
-        const subBu = cleanString(s.sub_business_unit).toLowerCase();
-        return bus.includes(bu) || bus.includes(subBu);
-      });
+      const wanted = parseFilterList(business_unit);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.business_unit, s.sub_business_unit]));
     }
     if (sub_business_unit) {
-      const subs = sub_business_unit.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => {
-        const subBu = cleanString(s.sub_business_unit).toLowerCase();
-        const bu = cleanString(s.business_unit).toLowerCase();
-        return subs.includes(subBu) || subs.includes(bu);
-      });
+      const wanted = parseFilterList(sub_business_unit);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.business_unit, s.sub_business_unit]));
     }
     if (customer) {
-      const custs = customer.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => custs.includes(cleanString(s.customer).toLowerCase()));
+      const wanted = parseFilterList(customer);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.customer]));
     }
     if (manager) {
-      const mgrs = manager.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => mgrs.includes(cleanString(s.manager).toLowerCase()));
+      const wanted = parseFilterList(manager);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.manager]));
     }
     if (support_team) {
-      const sts = support_team.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => sts.includes(cleanString(s.support_team).toLowerCase()));
+      const wanted = parseFilterList(support_team);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.support_team]));
     }
     if (environment) {
-      const envs = environment.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => envs.includes(cleanString(s.environment).toLowerCase()));
+      const wanted = parseFilterList(environment);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.environment]));
     }
     if (power_state) {
-      const ps = power_state.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => ps.includes(cleanString(s.power_state).toLowerCase()));
+      const wanted = parseFilterList(power_state);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.power_state]));
     }
     if (datacenter) {
-      const dcs = datacenter.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => dcs.includes(cleanString(s.datacenter).toLowerCase()));
+      const wanted = parseFilterList(datacenter);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.datacenter]));
     }
     if (product) {
-      const prods = product.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => prods.includes(cleanString(s.product).toLowerCase()));
+      const wanted = parseFilterList(product);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.product]));
     }
     if (func) {
-      const funcs = func.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => funcs.includes(cleanString(s.function).toLowerCase()));
+      const wanted = parseFilterList(func);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.function]));
     }
     if (secure_boot !== undefined && secure_boot !== '') {
-      if (secure_boot === 'TRUE' || secure_boot === 'true') {
-        list = list.filter(s => s.efi_secure_boot === true);
-      } else if (secure_boot === 'FALSE' || secure_boot === 'false') {
-        list = list.filter(s => s.efi_secure_boot === false);
-      } else if (secure_boot === 'UNKNOWN' || secure_boot === 'null') {
-        list = list.filter(s => s.efi_secure_boot === null);
-      }
+      const wanted = secure_boot.toLowerCase();
+      list = list.filter(s => {
+        if (wanted === 'true') return s.efi_secure_boot === true;
+        if (wanted === 'false') return s.efi_secure_boot === false;
+        if (wanted === 'unknown' || wanted === 'null') return s.efi_secure_boot === null;
+        return true;
+      });
     }
     if (network) {
-      const net = cleanString(network).toLowerCase();
+      const wanted = cleanString(network).toLowerCase();
       list = list.filter(
         s =>
-          cleanString(s.network_1).toLowerCase().includes(net) ||
-          cleanString(s.network_2).toLowerCase().includes(net) ||
-          cleanString(s.network_3).toLowerCase().includes(net)
+          cleanString(s.network_1).toLowerCase().includes(wanted) ||
+          cleanString(s.network_2).toLowerCase().includes(wanted) ||
+          cleanString(s.network_3).toLowerCase().includes(wanted)
       );
     }
     if (host) {
-      const h = cleanString(host).toLowerCase();
-      list = list.filter(s => cleanString(s.host).toLowerCase() === h);
+      const wanted = cleanString(host).toLowerCase();
+      list = list.filter(s => cleanString(s.host).toLowerCase() === wanted);
     }
     if (vm) {
-      const vms = vm.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => vms.includes(cleanString(s.vm).toLowerCase()));
+      const wanted = parseFilterList(vm);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.vm]));
     }
     if (primary_ip_address) {
-      const ips = primary_ip_address.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => ips.includes(cleanString(s.primary_ip_address).toLowerCase()));
+      const wanted = parseFilterList(primary_ip_address);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.primary_ip_address]));
     }
     if (email) {
-      const emails = email.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => emails.includes(cleanString(s.email).toLowerCase()));
+      const wanted = parseFilterList(email);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.email]));
     }
     if (dns_name) {
-      const dns = dns_name.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
-      list = list.filter(s => dns.includes(cleanString(s.dns_name).toLowerCase()));
+      const wanted = parseFilterList(dns_name);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.dns_name]));
     }
 
     // Global Query inside table
     if (q) {
       const query = q.toLowerCase();
-      list = list.filter(
-        s =>
-          (s.host || '').toLowerCase().includes(query) ||
-          (s.vm || '').toLowerCase().includes(query) ||
-          (s.dns_name || '').toLowerCase().includes(query) ||
-          (s.primary_ip_address || '').toLowerCase().includes(query) ||
-          (s.manager || '').toLowerCase().includes(query) ||
-          (s.email || '').toLowerCase().includes(query) ||
-          (s.customer || '').toLowerCase().includes(query) ||
-          (s.business_unit || '').toLowerCase().includes(query) ||
-          (s.sub_business_unit || '').toLowerCase().includes(query) ||
-          (s.product || '').toLowerCase().includes(query) ||
-          (s.function || '').toLowerCase().includes(query) ||
-          (s.datacenter || '').toLowerCase().includes(query) ||
-          (s.network_1 || '').toLowerCase().includes(query) ||
-          (s.network_2 || '').toLowerCase().includes(query) ||
-          (s.network_3 || '').toLowerCase().includes(query) ||
-          (s.organisation_short_code || '').toLowerCase().includes(query)
-      );
+      list = list.filter(server => matchesServerSearch(server, query, SERVER_SEARCH_FIELDS));
     }
 
     // Sorting
@@ -613,28 +640,9 @@ async function startServer() {
       return res.json([]);
     }
 
-    const matches = db.data.servers.filter(s => {
-      return (
-        (s.host || '').toLowerCase().includes(q) ||
-        (s.vm || '').toLowerCase().includes(q) ||
-        (s.dns_name || '').toLowerCase().includes(q) ||
-        (s.primary_ip_address || '').toLowerCase().includes(q) ||
-        (s.manager || '').toLowerCase().includes(q) ||
-        (s.email || '').toLowerCase().includes(q) ||
-        (s.customer || '').toLowerCase().includes(q) ||
-        (s.business_unit || '').toLowerCase().includes(q) ||
-        (s.sub_business_unit || '').toLowerCase().includes(q) ||
-        (s.product || '').toLowerCase().includes(q) ||
-        (s.function || '').toLowerCase().includes(q) ||
-        (s.datacenter || '').toLowerCase().includes(q) ||
-        (s.support_team || '').toLowerCase().includes(q) ||
-        (s.organisation_short_code || '').toLowerCase().includes(q) ||
-        (s.organisation_abbreviated || '').toLowerCase().includes(q) ||
-        (s.network_1 || '').toLowerCase().includes(q) ||
-        (s.network_2 || '').toLowerCase().includes(q) ||
-        (s.network_3 || '').toLowerCase().includes(q)
-      );
-    });
+    const matches = db.data.servers.filter(server =>
+      matchesServerSearch(server, q, SERVER_GLOBAL_SEARCH_FIELDS)
+    );
 
     // Limit to top 25 for quick autocomplete dropdown
     const results = matches.slice(0, 25).map(s => ({
@@ -821,12 +829,12 @@ async function startServer() {
       return res.status(404).json({ error: 'Business unit not found' });
     }
 
-    const subBUs = Array.from(new Set(servers.map(s => s.sub_business_unit).filter(Boolean)));
-    const products = Array.from(new Set(servers.map(s => s.product).filter(Boolean)));
-    const functions = Array.from(new Set(servers.map(s => s.function).filter(Boolean)));
-    const environments = Array.from(new Set(servers.map(s => s.environment).filter(Boolean)));
-    const datacenters = Array.from(new Set(servers.map(s => s.datacenter).filter(Boolean)));
-    const supportTeams = Array.from(new Set(servers.map(s => s.support_team).filter(Boolean)));
+    const subBUs = uniqueValues(servers, s => s.sub_business_unit);
+    const products = uniqueValues(servers, s => s.product);
+    const functions = uniqueValues(servers, s => s.function);
+    const environments = uniqueValues(servers, s => s.environment);
+    const datacenters = uniqueValues(servers, s => s.datacenter);
+    const supportTeams = uniqueValues(servers, s => s.support_team);
 
     const networksSet = new Set<string>();
     servers.forEach(s => {
@@ -1175,6 +1183,7 @@ async function startServer() {
     res.json(updated);
   });
 
+  // Update one host's triage state inside an incident (single canonical handler)
   api.put('/incidents/:id/hosts/:serverId', (req: Request, res: Response) => {
     const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
@@ -1256,32 +1265,6 @@ async function startServer() {
       matched_servers: matchedServers,
       unmatched_entries: unmatchedEntries,
     });
-  });
-
-  // Update specific host triage status, engineer name, and notes in an incident
-  api.put('/incidents/:id/hosts/:serverId', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id);
-    if (!inc) return res.status(404).json({ error: 'Incident not found' });
-
-    if (!inc.host_details) inc.host_details = {};
-    const serverId = req.params.serverId;
-    const prev = inc.host_details[serverId] || {
-      server_id: serverId,
-      status: 'To be contacted',
-      patch_engineer: '',
-      notes: '',
-    };
-
-    inc.host_details[serverId] = {
-      ...prev,
-      ...req.body,
-      server_id: serverId,
-      updated_at: new Date().toISOString(),
-    };
-    inc.updated_at = new Date().toISOString();
-    db.save();
-
-    res.json(inc.host_details[serverId]);
   });
 
   // Remove host from incident

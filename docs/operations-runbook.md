@@ -1,6 +1,6 @@
 # Operations runbook
 
-> **At a glance:** Install with npm (legacy peer resolution), run with `npm run dev`, persist by backing up `data/csm_database.json`, and verify reports with `npm run verify:reports`.
+> **At a glance:** Install with npm (legacy peer resolution), run with `npm run dev`, persist by backing up `data/csm_database.json`, and verify with `npm run verify`.
 
 | | |
 |---|---|
@@ -36,6 +36,10 @@ npm run dev
 - Serves the API and the Vite-powered SPA on **http://localhost:3000**.
 - Change the port with `PORT=3010 npm run dev` (macOS/Linux) or `$env:PORT=3010; npm run dev` (PowerShell).
 - The first start seeds `data/csm_database.json` if it does not exist, then sanitises and rewrites it. This is normal: `updated_at` values change on first boot.
+
+### Windows launcher
+
+Double-click `start-dev.bat`, or run `start-dev.bat 3010` from a terminal at the repo root. The script checks Node.js is on `PATH`, installs dependencies on first run (`npm install --legacy-peer-deps`), starts `npm run dev` on port 3000 (or the port you pass), opens the browser after a few seconds, and keeps the window open when the server stops. Set `NO_BROWSER=1` before running to skip the browser step.
 
 Health check:
 
@@ -99,15 +103,17 @@ Before a large import: back up the JSON file (section 4). There is no undo.
 
 Required columns are matched by header aliases; the canonical source headers are in the seed CSV. `Host` and `VM` form the identity key, so blank values create unpredictable duplicates.
 
-## 7. Verify reports and types
+## 7. Verify reports, incidents and types
 
 ```bash
 npm run verify:reports   # builds all 12 reports and asserts their semantics
+npm run verify:incidents # asserts the shared patched/communicated/documentation rules
+npm run verify           # both suites
 npm run lint             # tsc --noEmit
 npm run build            # production bundle
 ```
 
-`verify:reports` reads the live `data/csm_database.json`, so run it after changing data or report logic. It exits non-zero and prints each failed assertion. It is safe: it only reads the file.
+`verify:reports` and `verify:incidents` read the live `data/csm_database.json`, so run them after changing data or report logic. They exit non-zero and print each failed assertion. They are safe: they only read the file.
 
 Optional UI smoke test (needs the dev server on port 3010 and Chrome started with `--remote-debugging-port=9222`):
 
@@ -115,7 +121,7 @@ Optional UI smoke test (needs the dev server on port 3010 and Chrome started wit
 node scripts/ui-smoke.mjs
 ```
 
-It loads the app, visits all 12 reports, checks titles/columns/row counts/summary cards, narrows a search, opens a server from a report row, and writes screenshots. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
+It loads the app, visits every sidebar view, checks all 12 reports (titles/columns/row counts/summary cards), narrows a search, opens a server from a report row, and writes screenshots. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
 
 ## 8. Troubleshooting
 
@@ -143,7 +149,7 @@ It loads the app, visits all 12 reports, checks titles/columns/row counts/summar
 1. Stop the server.
 2. Back up `data/csm_database.json`.
 3. Pull the new code and reinstall (`npm install --legacy-peer-deps`).
-4. Run `npm run lint`, `npm run verify:reports` and `npm run build`.
+4. Run `npm run lint`, `npm run verify` and `npm run build`.
 5. Start the server and query `/api/stats`; open **Data Sync** to confirm record counts.
 6. If the schema changed, check the release notes; there is no migration framework — new fields are sanitised on load and missing ones default to empty.
 

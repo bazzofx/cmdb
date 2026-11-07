@@ -2,8 +2,8 @@ import type {
   ServerRecord,
   Incident,
   IncidentImpact,
+  IncidentHostDetail,
   PatchCampaign,
-  PatchTarget,
   AuditLogEvent,
   ImportHistoryItem,
   DashboardMetrics,
@@ -12,327 +12,256 @@ import type {
 
 const API_BASE = '/api';
 
+// ---------------------------------------------------------------------------
+// One request helper for the whole client. Before this, 31 of 34 calls carried
+// an identical `if (!res.ok) throw new Error(...)` block.
+// ---------------------------------------------------------------------------
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: unknown;
+  /** Fallback message when the server does not return `{ error }`. */
+  failure: string;
+}
+
+async function request<T>(path: string, options: RequestOptions): Promise<T> {
+  const init: RequestInit = { method: options.method ?? 'GET' };
+  if (options.body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, init);
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || options.failure);
+  }
+  return response.json() as Promise<T>;
+}
+
+const query = (params: Record<string, string | number | undefined>): string => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') search.append(key, String(value));
+  }
+  return search.toString();
+};
+
+// ---------------------------------------------------------------------------
+// Response shapes reused by views
+// ---------------------------------------------------------------------------
+
+export interface ServerListResponse {
+  items: ServerRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface ServerDetailResponse {
+  server: ServerRecord;
+  relationships: {
+    same_hypervisor_vms: { id: string; vm: string; ip: string; bu: string }[];
+    same_network_servers: { id: string; host: string; vm: string; ip: string; bu: string }[];
+    same_manager_servers: { id: string; host: string; vm: string; ip: string; bu: string }[];
+  };
+  history: AuditLogEvent[];
+}
+
+export interface BusinessUnitSummary {
+  name: string;
+  organisation_short_code: string;
+  organisation_abbreviated: string;
+  customer: string;
+  total_servers: number;
+  powered_on_servers: number;
+  sub_business_units_count: number;
+  sub_business_units: string[];
+  managers_count: number;
+  managers: string[];
+  support_teams_count: number;
+  support_teams: string[];
+  datacenters_count: number;
+  datacenters: string[];
+}
+
+export interface BusinessUnitDetail {
+  name: string;
+  total_servers: number;
+  powered_on_servers: number;
+  sub_business_units: string[];
+  products: string[];
+  functions: string[];
+  environments: string[];
+  datacenters: string[];
+  support_teams: string[];
+  networks: string[];
+  managers: { name: string; email: string; server_count: number }[];
+  servers: ServerRecord[];
+}
+
+export interface CommunicationsPreview {
+  total_contacts: number;
+  valid_emails: number;
+  missing_emails: number;
+  contacts: Array<{
+    business_unit: string;
+    manager: string;
+    email: string;
+    server_count: number;
+    support_team: string;
+    missing_email?: boolean;
+  }>;
+  preview: { subject: string; body: string };
+}
+
+export interface ImportPreview {
+  total_rows: number;
+  detected_columns: string[];
+  suggested_mapping: Record<string, string>;
+  preview: Record<string, unknown>[];
+}
+
+export interface AddIncidentServersResult {
+  incident: Incident;
+  total_affected: number;
+  matched_count: number;
+  unmatched_count: number;
+  matched_servers: ServerRecord[];
+  unmatched_entries: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
+
 export const api = {
   // Stats
-  async getStats(): Promise<DashboardMetrics> {
-    const res = await fetch(`${API_BASE}/stats`);
-    if (!res.ok) throw new Error('Failed to fetch stats');
-    return res.json();
-  },
+  getStats: () => request<DashboardMetrics>('/stats', { failure: 'Failed to fetch stats' }),
 
-  // Products (4_Product)
-  async getProducts(): Promise<ProductSummary[]> {
-    const res = await fetch(`${API_BASE}/products`);
-    if (!res.ok) throw new Error('Failed to fetch products');
-    return res.json();
-  },
+  // Products (4_Product) — unparameterised aggregation
+  getProducts: () => request<ProductSummary[]>('/products', { failure: 'Failed to fetch products' }),
 
   // Servers
-  async getServers(params: Record<string, string | number | undefined> = {}): Promise<{
-    items: ServerRecord[];
-    total: number;
-    page: number;
-    limit: number;
-    total_pages: number;
-  }> {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') query.append(k, String(v));
-    });
-    const res = await fetch(`${API_BASE}/servers?${query.toString()}`);
-    if (!res.ok) throw new Error('Failed to fetch servers');
-    return res.json();
-  },
+  getServers: (params: Record<string, string | number | undefined> = {}) =>
+    request<ServerListResponse>(`/servers?${query(params)}`, { failure: 'Failed to fetch servers' }),
 
-  async getServer(id: string): Promise<{
-    server: ServerRecord;
-    relationships: {
-      same_hypervisor_vms: { id: string; vm: string; ip: string; bu: string }[];
-      same_network_servers: { id: string; host: string; vm: string; ip: string; bu: string }[];
-      same_manager_servers: { id: string; host: string; vm: string; bu: string }[];
-    };
-    history: AuditLogEvent[];
-  }> {
-    const res = await fetch(`${API_BASE}/servers/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch server details');
-    return res.json();
-  },
+  getServer: (id: string) =>
+    request<ServerDetailResponse>(`/servers/${id}`, { failure: 'Failed to fetch server details' }),
 
-  async createServer(data: Partial<ServerRecord>): Promise<ServerRecord> {
-    const res = await fetch(`${API_BASE}/servers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to create server');
-    return res.json();
-  },
-
-  async updateServer(id: string, data: Partial<ServerRecord>): Promise<ServerRecord> {
-    const res = await fetch(`${API_BASE}/servers/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to update server');
-    return res.json();
-  },
-
-  async deleteServer(id: string): Promise<{ success: boolean }> {
-    const res = await fetch(`${API_BASE}/servers/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete server');
-    return res.json();
-  },
-
-  // Search
-  async searchServers(q: string): Promise<any[]> {
+  searchServers: async (q: string): Promise<ServerRecord[]> => {
     if (!q.trim()) return [];
-    const res = await fetch(`${API_BASE}/servers/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return [];
-    return res.json();
+    try {
+      return await request<ServerRecord[]>(`/servers/search?q=${encodeURIComponent(q)}`, {
+        failure: 'Search failed',
+      });
+    } catch {
+      return [];
+    }
   },
 
-  // Business Units
-  async getBusinessUnits(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/business-units`);
-    if (!res.ok) throw new Error('Failed to fetch business units');
-    return res.json();
-  },
+  // Business units
+  getBusinessUnits: () =>
+    request<BusinessUnitSummary[]>('/business-units', { failure: 'Failed to fetch business units' }),
 
-  async getBusinessUnitDetail(name: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/business-units/${encodeURIComponent(name)}`);
-    if (!res.ok) throw new Error('Failed to fetch business unit detail');
-    return res.json();
-  },
-
-  // Managers
-  async getManagers(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/managers`);
-    if (!res.ok) throw new Error('Failed to fetch managers');
-    return res.json();
-  },
-
-  async getManagerServers(name: string): Promise<ServerRecord[]> {
-    const res = await fetch(`${API_BASE}/managers/${encodeURIComponent(name)}/servers`);
-    if (!res.ok) throw new Error('Failed to fetch manager servers');
-    return res.json();
-  },
-
-  // Networks
-  async getNetworks(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/networks`);
-    if (!res.ok) throw new Error('Failed to fetch networks');
-    return res.json();
-  },
-
-  async getNetworkServers(name: string): Promise<ServerRecord[]> {
-    const res = await fetch(`${API_BASE}/networks/${encodeURIComponent(name)}/servers`);
-    if (!res.ok) throw new Error('Failed to fetch network servers');
-    return res.json();
-  },
-
-  // Datacenters
-  async getDatacenters(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/datacenters`);
-    if (!res.ok) throw new Error('Failed to fetch datacenters');
-    return res.json();
-  },
+  getBusinessUnitDetail: (name: string) =>
+    request<BusinessUnitDetail>(`/business-units/${encodeURIComponent(name)}`, {
+      failure: 'Failed to fetch business unit detail',
+    }),
 
   // Incidents
-  async getIncidents(): Promise<Incident[]> {
-    const res = await fetch(`${API_BASE}/incidents`);
-    if (!res.ok) throw new Error('Failed to fetch incidents');
-    return res.json();
-  },
+  getIncidents: () => request<Incident[]>('/incidents', { failure: 'Failed to fetch incidents' }),
 
-  async createIncident(data: Partial<Incident> & { raw_input?: string }): Promise<Incident> {
-    const res = await fetch(`${API_BASE}/incidents`, {
+  createIncident: (data: Partial<Incident> & { raw_input?: string }) =>
+    request<Incident>('/incidents', { method: 'POST', body: data, failure: 'Failed to create incident' }),
+
+  updateIncident: (id: string, data: Partial<Incident>) =>
+    request<Incident>(`/incidents/${id}`, {
+      method: 'PUT',
+      body: data,
+      failure: 'Failed to update incident',
+    }),
+
+  updateIncidentHostDetail: (
+    incidentId: string,
+    serverId: string,
+    data: Partial<IncidentHostDetail>
+  ) =>
+    request<IncidentHostDetail>(`/incidents/${incidentId}/hosts/${serverId}`, {
+      method: 'PUT',
+      body: data,
+      failure: 'Failed to update incident host detail',
+    }),
+
+  addIncidentServers: (id: string, payload: { raw_input?: string; server_ids?: string[] }) =>
+    request<AddIncidentServersResult>(`/incidents/${id}/servers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to create incident');
-    return res.json();
-  },
+      body: payload,
+      failure: 'Failed to add incident servers',
+    }),
 
-  async getIncident(id: string): Promise<Incident> {
-    const res = await fetch(`${API_BASE}/incidents/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch incident');
-    return res.json();
-  },
+  getIncidentImpact: (id: string) =>
+    request<IncidentImpact>(`/incidents/${id}/impact`, {
+      failure: 'Failed to calculate incident impact',
+    }),
 
-  async updateIncident(id: string, data: Partial<Incident>): Promise<Incident> {
-    const res = await fetch(`${API_BASE}/incidents/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to update incident');
-    return res.json();
-  },
-
-  async updateIncidentHostDetail(incidentId: string, serverId: string, data: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/incidents/${incidentId}/hosts/${serverId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to update incident host detail');
-    return res.json();
-  },
-
-  async addIncidentServers(id: string, payload: { raw_input?: string; server_ids?: string[] }): Promise<{
-    incident: Incident;
-    total_affected: number;
-    matched_count: number;
-    unmatched_count: number;
-    matched_servers: ServerRecord[];
-    unmatched_entries: string[];
-  }> {
-    const res = await fetch(`${API_BASE}/incidents/${id}/servers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error('Failed to add incident servers');
-    return res.json();
-  },
-
-  async getIncidentImpact(id: string): Promise<IncidentImpact> {
-    const res = await fetch(`${API_BASE}/incidents/${id}/impact`);
-    if (!res.ok) throw new Error('Failed to calculate incident impact');
-    return res.json();
-  },
-
-  async updateIncidentHost(incidentId: string, serverId: string, data: Partial<{ status: string; patch_engineer: string; notes: string }>): Promise<any> {
-    const res = await fetch(`${API_BASE}/incidents/${incidentId}/hosts/${serverId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to update incident host status');
-    return res.json();
-  },
-
-  async removeIncidentServer(incidentId: string, serverId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/incidents/${incidentId}/servers/${serverId}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error('Failed to remove server from incident');
-    return res.json();
-  },
+  removeIncidentServer: (incidentId: string, serverId: string) =>
+    request<{ success: boolean; remaining: number }>(
+      `/incidents/${incidentId}/servers/${serverId}`,
+      { method: 'DELETE', failure: 'Failed to remove server from incident' }
+    ),
 
   // Patching
-  async getPatchCampaigns(): Promise<PatchCampaign[]> {
-    const res = await fetch(`${API_BASE}/patching/campaigns`);
-    if (!res.ok) throw new Error('Failed to fetch patch campaigns');
-    return res.json();
-  },
-
-  async createPatchCampaign(data: Partial<PatchCampaign> & { server_ids?: string[] }): Promise<PatchCampaign> {
-    const res = await fetch(`${API_BASE}/patching/campaigns`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to create patch campaign');
-    return res.json();
-  },
-
-  async getPatchCampaignDetail(id: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/patching/campaigns/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch patch campaign detail');
-    return res.json();
-  },
-
-  async updatePatchCampaignTarget(campaignId: string, serverId: string, data: Partial<PatchTarget>): Promise<any> {
-    const res = await fetch(`${API_BASE}/patching/campaigns/${campaignId}/servers/${serverId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Failed to update patch target');
-    return res.json();
-  },
+  getPatchCampaigns: () =>
+    request<PatchCampaign[]>('/patching/campaigns', { failure: 'Failed to fetch patch campaigns' }),
 
   // Communications
-  async previewCommunications(payload: {
+  previewCommunications: (payload: {
     server_ids?: string[];
     template_type?: string;
     incident_reference?: string;
     incident_title?: string;
     severity?: string;
     target_date?: string;
-  }): Promise<{
-    total_contacts: number;
-    valid_emails: number;
-    missing_emails: number;
-    contacts: any[];
-    preview: { subject: string; body: string };
-  }> {
-    const res = await fetch(`${API_BASE}/communications/preview`, {
+  }) =>
+    request<CommunicationsPreview>('/communications/preview', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error('Failed to generate communications preview');
-    return res.json();
-  },
+      body: payload,
+      failure: 'Failed to generate communications preview',
+    }),
 
   // Imports
-  async previewImport(csv_content: string): Promise<{
-    total_rows: number;
-    detected_columns: string[];
-    suggested_mapping: Record<string, string>;
-    preview: any[];
-  }> {
-    const res = await fetch(`${API_BASE}/imports/preview`, {
+  previewImport: (csv_content: string) =>
+    request<ImportPreview>('/imports/preview', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ csv_content }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to preview CSV');
-    }
-    return res.json();
-  },
+      body: { csv_content },
+      failure: 'Failed to preview CSV',
+    }),
 
-  async executeImport(payload: {
+  executeImport: (payload: {
     csv_content: string;
     filename?: string;
     strategy: 'insert' | 'update' | 'synchronise';
     user?: string;
-  }): Promise<{ summary: ImportHistoryItem; total_in_database: number }> {
-    const res = await fetch(`${API_BASE}/imports/execute`, {
+  }) =>
+    request<{ summary: ImportHistoryItem; total_in_database: number }>('/imports/execute', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to execute import');
-    }
-    return res.json();
-  },
+      body: payload,
+      failure: 'Failed to execute import',
+    }),
 
-  async getImportHistory(): Promise<ImportHistoryItem[]> {
-    const res = await fetch(`${API_BASE}/imports/history`);
-    if (!res.ok) throw new Error('Failed to fetch import history');
-    return res.json();
-  },
+  getImportHistory: () =>
+    request<ImportHistoryItem[]>('/imports/history', { failure: 'Failed to fetch import history' }),
 
-  // Audit Logs
-  async getAuditLogs(): Promise<AuditLogEvent[]> {
-    const res = await fetch(`${API_BASE}/audit-logs`);
-    if (!res.ok) throw new Error('Failed to fetch audit logs');
-    return res.json();
-  },
+  // Audit logs
+  getAuditLogs: () =>
+    request<AuditLogEvent[]>('/audit-logs', { failure: 'Failed to fetch audit logs' }),
 
   // Reset demo seed
-  async resetDatabase(): Promise<{ success: boolean; count: number }> {
-    const res = await fetch(`${API_BASE}/seed/reset`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to reset database');
-    return res.json();
-  },
+  resetDatabase: () =>
+    request<{ success: boolean; count: number }>('/seed/reset', {
+      method: 'POST',
+      failure: 'Failed to reset database',
+    }),
 };

@@ -26,6 +26,7 @@ import {
   sortReportRows,
 } from '../../services/reportEngine.js';
 import type { ReportColumn, ReportRow } from '../../services/reportEngine.js';
+import { downloadText } from '../../utils/export.js';
 import type { Incident, PatchCampaign, ServerRecord } from '../../types/index.js';
 
 interface ReportsViewProps {
@@ -93,18 +94,6 @@ const MIN_WIDTHS: Record<string, number> = {
   incidents: 130,
   network: 180,
   reference: 120,
-};
-
-const downloadFile = (filename: string, content: string, mimeType: string) => {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 };
 
 export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilterInventory }) => {
@@ -184,7 +173,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
 
   const exportCsv = () => {
     const csv = reportToCsv(activeDefinition.columns, visibleRows);
-    downloadFile(
+    downloadText(
       `csm_report_${activeDefinition.id}_${new Date().toISOString().slice(0, 10)}.csv`,
       csv,
       'text/csv;charset=utf-8'
@@ -193,7 +182,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
 
   const exportJson = () => {
     const payload = reportToJson(builtReport, visibleRows);
-    downloadFile(
+    downloadText(
       `csm_report_${activeDefinition.id}_${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(payload, null, 2),
       'application/json'
@@ -211,7 +200,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
       .join('\n');
     const summary = builtReport.summary.map(item => `- **${item.label}:** ${item.value}`).join('\n');
     const markdown = `# ${activeDefinition.title}\n\n${activeDefinition.description}\n\n_${activeDefinition.note}_\n\nGenerated ${builtReport.generatedAt} · ${visibleRows.length} records\n\n${summary}\n\n${header}\n${divider}\n${body}\n`;
-    downloadFile(
+    downloadText(
       `csm_report_${activeDefinition.id}_${new Date().toISOString().slice(0, 10)}.md`,
       markdown,
       'text/markdown;charset=utf-8'

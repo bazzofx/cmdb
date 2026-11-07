@@ -1,24 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   Copy,
   Check,
   Mail,
   Server,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Building2,
   Network as NetIcon,
-  HardDrive,
   User,
   Clock,
-  ExternalLink,
   Cpu,
   Layers,
   AlertTriangle,
-  Send,
-  PlusCircle,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import type { ServerRecord, AuditLogEvent } from '../../types/index.js';

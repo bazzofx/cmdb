@@ -78,6 +78,55 @@ const check = (condition, message) => {
 };
 
 check((await evaluate('document.title')).includes('CSM'), 'Page title missing');
+
+// Every routed view must mount without a crash or an empty workspace.
+const views = [
+  { label: 'Overview', marker: 'Infrastructure Overview' },
+  { label: 'Inventory', marker: 'SERVER INFRASTRUCTURE INVENTORY' },
+  { label: 'Business Units', marker: 'BUSINESS UNIT' },
+  { label: '4_Product', marker: 'PRODUCT' },
+  { label: 'Ownership', marker: 'OWNERSHIP' },
+  { label: 'Infrastructure Map', marker: 'INFRASTRUCTURE' },
+  { label: 'Incidents', marker: 'INCIDENT' },
+  { label: 'Archive Incident', marker: 'ARCHIV' },
+  { label: 'Data Sync', marker: 'DATA' },
+  { label: 'Settings', marker: 'AUDIT' },
+];
+
+const viewResults = [];
+for (const view of views) {
+  const clicked = await evaluate(`(() => {
+    const buttons = [...document.querySelectorAll('aside button')];
+    const button = buttons.find(candidate =>
+      [...candidate.querySelectorAll('span')].some(span => span.textContent.trim() === ${JSON.stringify(view.label)})
+    );
+    if (!button) return 'missing';
+    button.click();
+    return 'ok';
+  })()`);
+  check(clicked === 'ok', `View ${view.label}: sidebar button missing (${clicked})`);
+  await sleep(900);
+  const text = await evaluate(`document.querySelector('main')?.innerText ?? ''`);
+  check(
+    text.toUpperCase().includes(view.marker.toUpperCase()),
+    `View ${view.label}: did not render (missing "${view.marker}")`
+  );
+  viewResults.push({ label: view.label, characters: text.length });
+}
+
+// Capture the incident workbench for manual inspection, then move on to reports.
+await evaluate(`(() => {
+  const buttons = [...document.querySelectorAll('aside button')];
+  const button = buttons.find(candidate =>
+    [...candidate.querySelectorAll('span')].some(span => span.textContent.trim() === 'Incidents')
+  );
+  button?.click();
+  return true;
+})()`);
+await sleep(900);
+const incidentShot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+fs.writeFileSync('.tmp-incidents.png', Buffer.from(incidentShot.result.data, 'base64'));
+
 await evaluate(
   `(() => { const button = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Reports'); if (!button) throw new Error('Reports nav button not found'); button.click(); return true; })()`
 );
@@ -213,7 +262,12 @@ check(
   'Server drawer did not open from a report row'
 );
 
-console.log('Report rendering');
+console.log('View rendering');
+for (const result of viewResults) {
+  console.log(`  ✓ ${result.label.padEnd(20)} ${String(result.characters).padStart(5)} chars`);
+}
+
+console.log('\nReport rendering');
 console.log('ID  Title                                      Rows  Cols');
 for (const result of results) {
   console.log(

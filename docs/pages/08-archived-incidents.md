@@ -58,9 +58,9 @@ The page also exists so a report can be regenerated months later. Because the ge
 | Banner body | `description` | Includes the appended `[RESOLVED & ARCHIVED …]` text written at closure |
 | `Closed By:` | `closed_by` | Falls back to `SecOps Lead` |
 | `IoC:` | `ioc_or_vulnerability` | Falls back to `N/A` |
-| Gauge numerator | `host_details[id].status` / `patching_status` | `Patched`/`Patch` or `patching_status` `Patched`/`Validated` |
+| Gauge numerator | `host_details[id].status` / `patching_status` | `Patched`/`Patch` or `patching_status` `Patched`/`Validated` (shared rule) |
 | Gauge denominator | `impact.affected_servers.length` | Live inventory join, not a stored count |
-| Stakeholder Outreach | `host_details[id].communicated` or status `Contacted` | Broader than the triage page's count |
+| Stakeholder Outreach | `host_details[id].communicated` or status `Contacted` | Same definition as the triage page |
 | Documentation Coverage | `notes`, `patch_engineer`, `ticket_number` | Any one non-empty |
 | Containment Isolated | `host_details[id].status === 'Isolated'` | |
 | Linked Business Units | `server.business_unit` | Names joined into one line; can overflow on large cases |
@@ -82,7 +82,7 @@ The page also exists so a report can be regenerated months later. Because the ge
 - The page shows `Closed` **and** `Archived`. No current UI writes `Closed`; `Close & Archive` on the triage page jumps straight to `Archived`.
 - Reopening does not clear the closure metadata. The archive view passes `closed_at: undefined` and `closed_by: undefined`, but `JSON.stringify` drops undefined keys, so the server keeps the old values. Re-archiving overwrites them.
 - `servers granted exception` is inferred from "patched count is below total". It does not read `patching_status === 'Exception'`, so genuinely unpatched hosts are labelled as exceptions.
-- The gauge is wider than the triage page's: it counts `patching_status` of `Patched`/`Validated` as remediated even when triage status is still `To be contacted`. The same incident can show different percentages on the two pages.
+- The gauge uses the same shared rule as the triage page (`services/incidentAnalysis.ts`), so both pages show the same remediation percentage for the same incident.
 - Host details are read-only here by design. Correcting a ticket number or note requires reopening the incident.
 - Search only covers five fields and only the selected incident; there is no estate-wide archive search and no date-range filter.
 - Nothing is paginated. Very large incidents render every row.
@@ -127,9 +127,9 @@ There is no archive-specific endpoint: the archive is a client-side view of the 
 
 **Cross-view navigation.** `onSelectServer(server.id)` → drawer. `onNavigateToActiveIncidents()` → `setCurrentView('incident-triage')` with no parameters, so the triage page opens with whichever incident it auto-selects, not the one just reopened. No URL, hash or query string is used anywhere.
 
-**Report export plumbing.** `getReportPayload()` builds the same `ReportData` shape as the triage page but computes its own metrics: `patchedCount` counts triage status `Patched`/`Patch` **or** `patching_status` `Patched`/`Validated`; `communicatedCount` counts `communicated` **or** status `Contacted`; the `buBreakdown` rows carry `{ name, total, patched, communicated }` without the in-progress or isolated fields the triage page computes. Markdown is synchronous, Word awaits `Packer.toBlob` with five embedded chart PNGs, PDF is a `jsPDF` A4 document saved via `doc.save()`. Filenames are `incident_<reference>_report.<ext>`.
+**Report export plumbing.** `getReportPayload()` calls the shared `buildIncidentReportData()` in `services/incidentAnalysis.ts`; `exportIncidentReport(payload, format)` in `services/incidentReportExport.ts` performs the Markdown/Word/PDF download. Metrics, breakdowns and filenames (`incident_<reference>_report.<ext>`) are identical to the triage page by construction.
 
-**Extension points / known rough edges.** No "export all", no deletion, no date/severity filter and no pagination. The reopen payload's `undefined` fields are a no-op, so closure metadata survives. `loadArchivedIncidents` exists as a post-reopen fallback, but `App` always supplies the navigation callback, so that branch is unreachable. There is no loading skeleton, empty-row message or error banner. `Building2`, `Package`, `Users`, `ShieldAlert`, `Calendar`, `ExternalLink`, `ChevronRight`, `Filter` and `AlertTriangle` are imported but never referenced.
+**Extension points / known rough edges.** No "export all", no deletion, no date/severity filter and no pagination. The reopen payload's `undefined` fields are a no-op, so closure metadata survives. `loadArchivedIncidents` exists as a post-reopen fallback, but `App` always supplies the navigation callback, so that branch is unreachable. There is no loading skeleton, empty-row message or error banner.
 
 ## 8. Related pages
 

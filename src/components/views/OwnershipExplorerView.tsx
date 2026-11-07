@@ -256,7 +256,6 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
   const [selectedBU, setSelectedBU] = useState<string>('all');
   const [allBUs, setAllBUs] = useState<string[]>([]);
   const [nodeCount, setNodeCount] = useState<number>(0);
-  const [edgeCount, setEdgeCount] = useState<number>(0);
 
   // Interactive Hover Tooltip State
   const [hoverTooltip, setHoverTooltip] = useState<HoverTooltipState>({
@@ -499,7 +498,6 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
     });
 
     setNodeCount(addedNodeIds.size);
-    setEdgeCount(addedEdgeIds.size);
 
     // Clean up selected node if it was filtered out
     if (selectedNode && !addedNodeIds.has(selectedNode.id)) {

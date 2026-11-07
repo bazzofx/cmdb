@@ -1,22 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ShieldAlert,
   Plus,
   Users,
   Building2,
   Server,
-  Layers,
-  Network,
-  Cpu,
   Mail,
   Download,
   AlertTriangle,
   Check,
   Search,
   ExternalLink,
-  ChevronRight,
-  FileSpreadsheet,
-  AlertCircle,
   FileText,
   StickyNote,
   Calendar,
@@ -25,23 +19,12 @@ import {
   CheckCircle2,
   X,
   Clock,
-  Filter,
-  CheckCircle,
-  XCircle,
-  TrendingUp,
   BarChart3,
   ListFilter,
   Package,
-  Wrench,
-  ShieldCheck,
-  Send,
   RefreshCw,
-  SlidersHorizontal,
-  Phone,
   PhoneCall,
   FolderArchive,
-  Archive,
-  RotateCcw,
   ChevronDown,
   Upload,
   FileUp,
@@ -56,16 +39,12 @@ import type {
   ServerPatchingStatus,
   IncidentHostDetail,
 } from '../../types/index.js';
-import {
-  generateMarkdownReport,
-  generateWordDocx,
-  generatePdfReport,
-  type ReportData,
-} from '../../services/incidentReportGenerator.js';
+import { analyseIncident, buildIncidentReportData, hasHostNotes, isHostCommunicated } from '../../services/incidentAnalysis.js';
+import { exportIncidentReport } from '../../services/incidentReportExport.js';
+import { downloadCsv } from '../../utils/export.js';
 
 interface IncidentTriageViewProps {
   onSelectServer: (id: string) => void;
-  onOpenCommunications: (serverIds: string[]) => void;
   initialServerIds?: string[];
   onNavigateToArchive?: () => void;
   onRefreshIncidents?: () => void;
@@ -73,7 +52,6 @@ interface IncidentTriageViewProps {
 
 export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   onSelectServer,
-  onOpenCommunications,
   initialServerIds,
   onNavigateToArchive,
   onRefreshIncidents,
@@ -81,7 +59,6 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [impact, setImpact] = useState<IncidentImpact | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // View Display Mode: 'dashboard' (Metrics Dashboard) or 'table' (Action Table)
   const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
@@ -135,9 +112,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   // Interactive filters
   const [filterBu, setFilterBu] = useState<string | null>(null);
   const [filterMgr, setFilterMgr] = useState<string | null>(null);
-  const [filterOrgAbbr, setFilterOrgAbbr] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [filterPatchingStatus, setFilterPatchingStatus] = useState<string | null>(null);
   const [filterNotes, setFilterNotes] = useState<'has_notes' | 'no_notes' | null>(null);
   const [filterCommunication, setFilterCommunication] = useState<'communicated' | 'pending' | null>(null);
   const [filterProduct, setFilterProduct] = useState<string | null>(null);
@@ -172,7 +147,6 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   }, []);
 
   const loadIncidents = async () => {
-    setLoading(true);
     try {
       const data = await api.getIncidents();
       setIncidents(data);
@@ -182,8 +156,6 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       }
     } catch (err) {
       console.error('Failed to load incidents:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -230,9 +202,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   const clearAllFilters = () => {
     setFilterBu(null);
     setFilterMgr(null);
-    setFilterOrgAbbr(null);
     setFilterStatus(null);
-    setFilterPatchingStatus(null);
     setFilterNotes(null);
     setFilterCommunication(null);
     setFilterProduct(null);
@@ -286,50 +256,33 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     }
   };
 
-  const handleToggleCommunicated = async (serverId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!selectedIncidentId) return;
-
-    const current = hostDetails[serverId] || { server_id: serverId, status: 'To be contacted' };
-    const newCommState = !current.communicated;
-    const updated: IncidentHostDetail = {
-      ...current,
-      communicated: newCommState,
-      communication_date: newCommState ? new Date().toISOString().split('T')[0] : undefined,
-      status: newCommState ? 'Contacted' : current.status,
-      updated_at: new Date().toISOString(),
-    };
-
-    setHostDetails(prev => ({
-      ...prev,
-      [serverId]: updated,
-    }));
-
-    try {
-      await api.updateIncidentHostDetail(selectedIncidentId, serverId, updated);
-    } catch (err) {
-      console.error('Failed to toggle communication status:', err);
-    }
-  };
-
   const handleMarkAllCommunicated = async () => {
     if (!selectedIncidentId || !impact) return;
     const now = new Date().toISOString().split('T')[0];
     const updatedMap = { ...hostDetails };
+    const updates: Array<[string, IncidentHostDetail]> = [];
 
     for (const s of impact.affected_servers) {
       const current = updatedMap[s.id] || { server_id: s.id, status: 'To be contacted' };
-      updatedMap[s.id] = {
+      const detail: IncidentHostDetail = {
         ...current,
         communicated: true,
         communication_date: now,
         status: current.status === 'To be contacted' ? 'Patching' : current.status,
         updated_at: new Date().toISOString(),
       };
-      await api.updateIncidentHostDetail(selectedIncidentId, s.id, updatedMap[s.id]);
+      updatedMap[s.id] = detail;
+      updates.push([s.id, detail]);
     }
 
     setHostDetails(updatedMap);
+    await Promise.all(
+      updates.map(([serverId, detail]) =>
+        api
+          .updateIncidentHostDetail(selectedIncidentId, serverId, detail)
+          .catch(err => console.error('Failed to mark host communicated:', err))
+      )
+    );
   };
 
   // Open Notes Modal
@@ -533,52 +486,45 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     }
   };
 
-  // Report Export Handlers (PDF, Word .docx, Markdown .md)
-  const getReportPayload = (): ReportData | null => {
-    if (!selectedIncident) return null;
-    return {
-      incident: selectedIncident,
-      impact,
-      affectedList,
-      hostDetails,
-      metrics: {
-        totalServers,
-        patchedCount: (triageStats['Patched'] || 0) + (triageStats['Patch'] || 0),
-        patchedPct: totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0,
-        communicatedCount: commStats.communicatedCount,
-        communicatedPct: commStats.pct,
-        hasNotesCount: notesStats.hasNotesCount,
-        hasNotesPct: notesStats.pct,
-        isolatedCount: triageStats['Isolated'] || 0,
-      },
-      buBreakdown: buBreakdown.map(b => ({
-        name: b.name,
-        total: b.total,
-        patched: b.patched,
-        communicated: b.communicated,
-      })),
-      productBreakdown,
-      managerAccountability: managerAccountability.map(m => ({
-        name: m.name,
-        email: m.email,
-        total: m.total,
-        patched: m.patched,
-      })),
-    };
-  };
+  // Calculations for the dashboard and table, shared with the archive view.
+  const affectedList = useMemo(() => impact?.affected_servers ?? [], [impact]);
+  const totalServers = affectedList.length;
+
+  const analysis = useMemo(
+    () => analyseIncident(affectedList, hostDetails),
+    [affectedList, hostDetails]
+  );
+  const {
+    buBreakdown,
+    managerAccountability,
+    productBreakdown,
+    functionBreakdown,
+    triageCounts: triageStats,
+    patchedCount,
+    patchedPct,
+    communicatedCount,
+    communicatedPct,
+    pendingCommCount,
+    hasNotesCount,
+    hasNotesPct,
+    missingNotesCount,
+    isolatedCount,
+  } = analysis;
+
+  // Small projections keep the existing JSX unchanged.
+  const notesStats = { hasNotesCount, missingNotesCount, pct: hasNotesPct };
+  const commStats = { communicatedCount, pendingCommCount, pct: communicatedPct };
+
+  // Report export handlers (shared with the archive page)
+  const getReportPayload = () =>
+    selectedIncident
+      ? buildIncidentReportData(selectedIncident, impact, affectedList, hostDetails, analysis)
+      : null;
 
   const handleExportMarkdown = () => {
     const payload = getReportPayload();
     if (!payload) return;
-    const md = generateMarkdownReport(payload);
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `incident_${payload.incident.incident_reference}_report.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    exportIncidentReport(payload, 'markdown');
     setExportDropdownOpen(false);
   };
 
@@ -587,14 +533,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     if (!payload) return;
     setIsExporting(true);
     try {
-      const blob = await generateWordDocx(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `incident_${payload.incident.incident_reference}_report.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await exportIncidentReport(payload, 'word');
     } catch (err) {
       console.error('Word export failed:', err);
     } finally {
@@ -608,8 +547,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     if (!payload) return;
     setIsExporting(true);
     try {
-      const doc = generatePdfReport(payload);
-      doc.save(`incident_${payload.incident.incident_reference}_report.pdf`);
+      exportIncidentReport(payload, 'pdf');
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
@@ -618,238 +556,24 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     }
   };
 
-  // Reopen incident handler
-  const handleReopenIncident = async () => {
-    if (!selectedIncident) return;
-    try {
-      await api.updateIncident(selectedIncident.id, {
-        status: 'Investigating',
-      });
-      setIncidents(prev =>
-        prev.map(i =>
-          i.id === selectedIncident.id
-            ? {
-                ...i,
-                status: 'Investigating',
-              }
-            : i
-        )
-      );
-      if (onRefreshIncidents) onRefreshIncidents();
-    } catch (err) {
-      console.error('Failed to reopen incident:', err);
-    }
-  };
-
-  // Calculations for Overview Dashboard Metrics
-  const affectedList = impact?.affected_servers || [];
-  const totalServers = affectedList.length;
-
-  // 1. Business Units Linked with breakdown
-  const buBreakdown = useMemo(() => {
-    const map = new Map<string, {
-      name: string;
-      total: number;
-      patched: number;
-      inProgress: number;
-      communicated: number;
-      managers: Set<string>;
-      isolated: number;
-    }>();
-
-    affectedList.forEach(s => {
-      const bu = s.business_unit || 'Unassigned';
-      if (!map.has(bu)) {
-        map.set(bu, {
-          name: bu,
-          total: 0,
-          patched: 0,
-          inProgress: 0,
-          communicated: 0,
-          managers: new Set(),
-          isolated: 0,
-        });
-      }
-      const item = map.get(bu)!;
-      item.total++;
-      if (s.manager) item.managers.add(s.manager);
-
-      const detail = hostDetails[s.id];
-      const isPatched = detail?.status === 'Patched' || detail?.status === 'Patch' || detail?.patching_status === 'Patched' || detail?.patching_status === 'Validated';
-      if (isPatched) {
-        item.patched++;
-      } else if (detail?.status === 'Patching' || detail?.patching_status === 'In progress') {
-        item.inProgress++;
-      }
-      if (detail?.status === 'Contacted' || detail?.communicated) {
-        item.communicated++;
-      }
-      if (detail?.status === 'Isolated') {
-        item.isolated++;
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [affectedList, hostDetails]);
-
-  // 2. Patching Status Breakdown
-  const patchingStats = useMemo(() => {
-    const counts: Record<string, number> = {
-      'Patched': 0,
-      'In progress': 0,
-      'Validation required': 0,
-      'Not Started': 0,
-      'Exception': 0,
-    };
-
-    affectedList.forEach(s => {
-      const st = hostDetails[s.id]?.patching_status || 'Not Started';
-      counts[st] = (counts[st] || 0) + 1;
-    });
-
-    const patchedTotal = counts['Patched'] + (counts['Validated'] || 0);
-    const pct = totalServers > 0 ? Math.round((patchedTotal / totalServers) * 100) : 0;
-
-    return { counts, patchedTotal, pct };
-  }, [affectedList, hostDetails, totalServers]);
-
-  // 3. Notes Coverage
-  const notesStats = useMemo(() => {
-    let hasNotesCount = 0;
-    affectedList.forEach(s => {
-      const d = hostDetails[s.id];
-      if ((d?.notes && d.notes.trim().length > 0) || d?.patch_engineer || d?.ticket_number) {
-        hasNotesCount++;
-      }
-    });
-    const missingNotesCount = totalServers - hasNotesCount;
-    const pct = totalServers > 0 ? Math.round((hasNotesCount / totalServers) * 100) : 0;
-    return { hasNotesCount, missingNotesCount, pct };
-  }, [affectedList, hostDetails, totalServers]);
-
-  // 4. Communication Status
-  const commStats = useMemo(() => {
-    let communicatedCount = 0;
-    affectedList.forEach(s => {
-      const d = hostDetails[s.id];
-      if (d?.communicated) {
-        communicatedCount++;
-      }
-    });
-    const pendingCommCount = totalServers - communicatedCount;
-    const pct = totalServers > 0 ? Math.round((communicatedCount / totalServers) * 100) : 0;
-    return { communicatedCount, pendingCommCount, pct };
-  }, [affectedList, hostDetails, totalServers]);
-
-  // 5. Triage Status Distribution
-  const triageStats = useMemo(() => {
-    const counts: Record<string, number> = {
-      'Isolated': 0,
-      'Patching': 0,
-      'Patched': 0,
-      'Patch': 0,
-      'Contacted': 0,
-      'To be contacted': 0,
-      'Not Affected': 0,
-      'Uninstalled': 0,
-    };
-    affectedList.forEach(s => {
-      const st = hostDetails[s.id]?.status || 'To be contacted';
-      counts[st] = (counts[st] || 0) + 1;
-    });
-    return counts;
-  }, [affectedList, hostDetails]);
-
-  // 6. Impacted Software Products & Workload Functions
-  const productBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    affectedList.forEach(s => {
-      const p = s.product || 'Unassigned Product';
-      counts[p] = (counts[p] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [affectedList]);
-
-  const functionBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    affectedList.forEach(s => {
-      const f = s.function || 'General Server';
-      counts[f] = (counts[f] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [affectedList]);
-
-  // 7. Organisation Abbreviated Breakdown
-  const orgAbbrBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    affectedList.forEach(s => {
-      const org = s.organisation_abbreviated || 'Unassigned';
-      counts[org] = (counts[org] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [affectedList]);
-
-  // 8. Responsible Managers looking into the issues
-  const managerAccountability = useMemo(() => {
-    const map = new Map<string, {
-      name: string;
-      email: string;
-      total: number;
-      patched: number;
-      communicated: boolean;
-      businessUnits: Set<string>;
-    }>();
-
-    affectedList.forEach(s => {
-      const mgr = s.manager || 'Unassigned Manager';
-      if (!map.has(mgr)) {
-        map.set(mgr, {
-          name: mgr,
-          email: s.email || '',
-          total: 0,
-          patched: 0,
-          communicated: true,
-          businessUnits: new Set(),
-        });
-      }
-      const entry = map.get(mgr)!;
-      entry.total++;
-      if (s.business_unit) entry.businessUnits.add(s.business_unit);
-
-      const d = hostDetails[s.id];
-      if (d?.patching_status === 'Patched' || d?.patching_status === 'Validated') {
-        entry.patched++;
-      }
-      if (!d?.communicated) {
-        entry.communicated = false;
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [affectedList, hostDetails]);
-
   // Filtered affected servers for display in table
   const displayedServers = useMemo(() => {
     return affectedList.filter(s => {
       if (filterBu && s.business_unit !== filterBu) return false;
       if (filterMgr && s.manager !== filterMgr) return false;
-      if (filterOrgAbbr && s.organisation_abbreviated !== filterOrgAbbr) return false;
       if (filterProduct && s.product !== filterProduct) return false;
 
       const detail = hostDetails[s.id];
       if (filterStatus && (detail?.status || 'To be contacted') !== filterStatus) return false;
-      if (filterPatchingStatus && (detail?.patching_status || 'Not Started') !== filterPatchingStatus) return false;
 
       if (filterNotes === 'has_notes') {
-        const has = Boolean((detail?.notes && detail.notes.trim().length > 0) || detail?.patch_engineer || detail?.ticket_number);
-        if (!has) return false;
+        if (!hasHostNotes(detail)) return false;
       } else if (filterNotes === 'no_notes') {
-        const has = Boolean((detail?.notes && detail.notes.trim().length > 0) || detail?.patch_engineer || detail?.ticket_number);
-        if (has) return false;
+        if (hasHostNotes(detail)) return false;
       }
 
-      if (filterCommunication === 'communicated' && !detail?.communicated) return false;
-      if (filterCommunication === 'pending' && detail?.communicated) return false;
+      if (filterCommunication === 'communicated' && !isHostCommunicated(detail)) return false;
+      if (filterCommunication === 'pending' && isHostCommunicated(detail)) return false;
 
       if (searchTable) {
         const q = searchTable.toLowerCase();
@@ -873,10 +597,8 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     affectedList,
     filterBu,
     filterMgr,
-    filterOrgAbbr,
     filterProduct,
     filterStatus,
-    filterPatchingStatus,
     filterNotes,
     filterCommunication,
     searchTable,
@@ -884,7 +606,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   ]);
 
   const hasActiveFilters = Boolean(
-    filterBu || filterMgr || filterOrgAbbr || filterProduct || filterStatus || filterPatchingStatus || filterNotes || filterCommunication || searchTable
+    filterBu || filterMgr || filterProduct || filterStatus || filterNotes || filterCommunication || searchTable
   );
 
   // Status badge styling helper
@@ -935,32 +657,26 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     const rows = impact.affected_servers.map(s => {
       const d = hostDetails[s.id] || {};
       return [
-        `"${s.host}"`,
-        `"${s.vm}"`,
-        `"${s.primary_ip_address}"`,
-        `"${s.business_unit}"`,
-        `"${s.product}"`,
-        `"${s.function}"`,
-        `"${s.organisation_abbreviated}"`,
-        `"${s.manager}"`,
-        `"${s.email}"`,
-        `"${d.status || 'To be contacted'}"`,
-        `"${d.patching_status || 'Not Started'}"`,
-        `"${d.patch_engineer || ''}"`,
-        `"${d.patching_date || ''}"`,
-        `"${d.ticket_number || ''}"`,
-        `"${d.communicated ? 'YES' : 'NO'}"`,
-        `"${(d.notes || '').replace(/"/g, '""')}"`,
+        s.host,
+        s.vm,
+        s.primary_ip_address,
+        s.business_unit,
+        s.product,
+        s.function,
+        s.organisation_abbreviated,
+        s.manager,
+        s.email,
+        d.status || 'To be contacted',
+        d.patching_status || 'Not Started',
+        d.patch_engineer || '',
+        d.patching_date || '',
+        d.ticket_number || '',
+        d.communicated ? 'YES' : 'NO',
+        d.notes || '',
       ];
     });
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `incident_${selectedIncident?.incident_reference}_triage.csv`;
-    a.click();
+    downloadCsv(`incident_${selectedIncident?.incident_reference ?? 'unknown'}_triage.csv`, headers, rows);
   };
 
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
@@ -1228,7 +944,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                       <span className="text-xs font-bold text-white tracking-wide">Patched Systems</span>
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
-                      {totalServers > 0 ? Math.round((((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 100) : 0}% COMPLETE
+                      {patchedPct}% COMPLETE
                     </span>
                   </div>
 
@@ -1255,7 +971,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                           strokeDashoffset={
                             141.37 -
                             (totalServers > 0
-                              ? (((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)) / totalServers) * 141.37
+                              ? (patchedCount / totalServers) * 141.37
                               : 0)
                           }
                           className="transition-all duration-700 ease-out"
@@ -1271,7 +987,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                       {/* Gauge Center readout */}
                       <div className="absolute inset-0 top-3 flex flex-col items-center justify-center text-center">
                         <span className="text-2xl font-black font-mono text-white tracking-tight">
-                          {(triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)}
+                          {patchedCount}
                           <span className="text-xs text-slate-400 font-normal ml-1">/ {totalServers}</span>
                         </span>
                         <span className="text-[10px] font-mono text-emerald-400 font-semibold">
@@ -1283,7 +999,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
 
                   <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-white/5 text-slate-400">
                     <span>
-                      {totalServers - ((triageStats['Patched'] || 0) + (triageStats['Patch'] || 0))} pending remediation
+                      {totalServers - patchedCount} pending remediation
                     </span>
                     <span className="text-emerald-400 hover:underline">
                       {filterStatus === 'Patched' ? 'Show all' : 'Filter table →'}
@@ -1363,7 +1079,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                     >
                       <span className="text-slate-400 group-hover:text-rose-300">Quarantine & Containment:</span>
                       <span className="font-mono font-bold text-rose-300">
-                        {triageStats['Isolated'] || 0} isolated <span className="text-[11px] font-normal text-slate-400">· {triageStats['Patching'] || 0} patching active</span>
+                        {isolatedCount} isolated <span className="text-[11px] font-normal text-slate-400">· {triageStats['Patching'] || 0} patching active</span>
                       </span>
                     </div>
 
@@ -1718,10 +1434,8 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                   <span className="text-[11px] text-slate-400 uppercase font-semibold">Active Filter:</span>
                   {filterBu && <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">BU: {filterBu}</span>}
                   {filterMgr && <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Mgr: {filterMgr}</span>}
-                  {filterOrgAbbr && <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Org: {filterOrgAbbr}</span>}
                   {filterProduct && <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Product: {filterProduct}</span>}
                   {filterStatus && <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">Status: {filterStatus}</span>}
-                  {filterPatchingStatus && <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Patching: {filterPatchingStatus}</span>}
                   {filterNotes && <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">{filterNotes === 'has_notes' ? 'Has Notes' : 'No Notes'}</span>}
                   {filterCommunication && <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">{filterCommunication === 'communicated' ? 'Notified' : 'Pending Outreach'}</span>}
                 </div>
@@ -2098,7 +1812,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 </p>
                 <div className="flex items-center gap-4 text-[11px] font-mono pt-1 text-slate-300">
                   <span>Impacted Hosts: <strong className="text-white">{totalServers}</strong></span>
-                  <span>Patched Status: <strong className="text-emerald-400">{(triageStats['Patched'] || 0) + (triageStats['Patch'] || 0)}</strong></span>
+                  <span>Patched Status: <strong className="text-emerald-400">{patchedCount}</strong></span>
                 </div>
               </div>
 

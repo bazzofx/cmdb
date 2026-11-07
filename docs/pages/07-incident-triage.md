@@ -57,16 +57,16 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 
 **Keyboard.** No shortcuts belong to this view. The application-level `/` and `Ctrl`/`Cmd`+`K` open the global search overlay (`src/App.tsx`).
 
-**Loading.** There is no spinner or skeleton: the `loading` flag is set but never rendered, so a slow `GET /api/incidents` shows the empty state first.
+**Loading.** There is no spinner or skeleton, so a slow `GET /api/incidents` shows the empty state first.
 
 ## 4. Data shown
 
 | UI label | Source field / API | Notes |
 |---|---|---|
 | Incident ribbon pill | `incident_reference`, `incident_title`, `severity` | `GET /api/incidents`; dot rose only for `Critical` |
-| Patched Systems gauge | `host_details[id].status` | Counts `Patched` plus the legacy `Patch` value only |
+| Patched Systems gauge | `host_details[id].status` or `patching_status` | `Patched`/`Patch` triage status **or** `Patched`/`Validated` patching status (shared rule) |
 | Impacted Assets in Scope | `impact.affected_servers.length` | Server-computed from `affected_server_ids` |
-| Stakeholder Outreach | `host_details[id].communicated` | `true` only; status `Contacted` alone does not count here |
+| Stakeholder Outreach | `host_details[id].communicated` or `status === 'Contacted'` | Either signal counts as notified |
 | Notes & Ticket Tracking | `notes`, `patch_engineer`, `ticket_number` | Any one non-empty counts as documented |
 | Quarantine & Containment | `status` counts | Isolated and Patching |
 | Linked Business Units | `server.business_unit` | Falls back to `Unassigned` |
@@ -92,8 +92,8 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 - Only `Closed` and `Archived` incidents leave this page. `Open`, `Investigating`, `Contained` and `Remediated` all stay in the ribbon; there is no status filter.
 - `Close & Archive` writes `status: 'Archived'` directly — it does not pass through `Closed`. The archive page accepts both.
 - Severity only affects the ribbon dot and the report header. It does not gate any action, and `Critical` and `High` render identically.
-- Triage status and patching status are independent fields. A host can be `Patched` in the notes modal while its triage status still reads `To be contacted`; the gauge only trusts triage status.
-- `Notify All` issues one sequential `PUT` per affected host. On a large incident this is slow and there is no progress feedback; a mid-loop failure leaves earlier hosts updated.
+- Triage status and patching status are independent fields. A host can be `Patched` in the notes modal while its triage status still reads `To be contacted`; both are now accepted as patched, consistently with the archive and reports.
+- `Notify All` issues one parallel `PUT` per affected host. On a large incident the UI updates first and failures are only logged, so reload after a bulk action to confirm persistence.
 - Status changes are optimistic. If the `PUT` fails the console logs the error but the UI keeps the new value until reload.
 - Every call is attributed to `SecOps` server-side. `closed_by` is the only user-identifying field the operator supplies.
 - `Add to Incident` in the server drawer does not attach a host to an existing incident. It only stashes the server id in `targetedServerIds`, which is consumed when a *new* incident is created.
@@ -110,10 +110,9 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 | Prop | Type | What it does |
 |---|---|---|
 | `onSelectServer` | `(id: string) => void` | Opens the server drawer. Called from the Host Management modal's `View Full Server Profile`. |
-| `onOpenCommunications` | `(serverIds: string[]) => void` | **Declared and destructured but never called.** The intended hand-off to Communications is not wired. |
 | `initialServerIds` | `string[] \| undefined` | Used only as `affected_server_ids` when creating an incident. It does not pre-select, filter or pre-fill anything else. |
 | `onNavigateToArchive` | `() => void` | Renders the `Open Archive Incident` buttons in the banner and empty state. |
-| `onRefreshIncidents` | `() => void` | Fired after close/archive and after the (unused) reopen handler so `App` can refresh sidebar counts. |
+| `onRefreshIncidents` | `() => void` | Fired after close/archive so `App` can refresh sidebar counts. |
 
 **State, effects and API triggers.** One `useEffect` runs once and calls `api.getIncidents()`, auto-selecting the first active incident, which in turn calls `api.getIncidentImpact(id)`.
 
@@ -127,7 +126,7 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 | `showAddServersModal`, `bulkInput`, `addResults` | `POST /api/incidents/:id/servers`, then impact and incident reloads |
 | `hostActionModal`, `removingServer`, `isRemoving` | `DELETE /api/incidents/:id/servers/:serverId` |
 | `showCloseModal`, `closureNotes`, `closingEngineer` | `PUT /api/incidents/:id` with the archive payload |
-| Eight filter values + `searchTable` | Client-only; all cleared by `clearAllFilters()` on every incident switch |
+| Six filter values + `searchTable` | Client-only; all cleared by `clearAllFilters()` on every incident switch |
 | `exportDropdownOpen`, `isExporting`, `archiveNotification` | Client-only |
 
 **API calls and response shapes.**
@@ -146,17 +145,16 @@ Matching is case-insensitive equality on `host`, `vm`, `primary_ip_address` and 
 
 **Cross-view navigation.** `onSelectServer(server.id)` → `App` sets `selectedServerId`, opening `ServerDetailDrawer`. `onNavigateToArchive()` → `setCurrentView('archived-incidents')`. `onRefreshIncidents()` → `loadDashboardData()` in `App`, which re-reads stats, audit logs and incidents and updates the sidebar badges. No URL or query parameter changes; view state is a `useState` string.
 
-**Report export plumbing.** `getReportPayload()` assembles a `ReportData` from the selected incident, `impact`, `affectedList`, `hostDetails`, the computed metrics, `buBreakdown`, `productBreakdown` and `managerAccountability`.
+**Report export plumbing.** `getReportPayload()` calls `buildIncidentReportData()` in `services/incidentAnalysis.ts`, which wraps the shared `analyseIncident()` result in the `ReportData` shape used by all three generators. `exportIncidentReport(payload, format)` in `services/incidentReportExport.ts` performs the download, so the archive page and this page share one implementation.
 - *Markdown* — `generateMarkdownReport()` returns a string synchronously; a `Blob` is downloaded as `incident_<reference>_report.md`. Sections: metadata, executive metrics with ASCII bars, BU, product, managers, per-host inventory.
 - *Word* — `generateWordDocx()` renders five chart PNGs (`incidentCharts.ts`) and returns a `Packer.toBlob` promise, downloaded as `incident_<reference>_report.docx`.
-- *PDF* — `generatePdfReport()` builds an A4 portrait `jsPDF` document with the same charts embedded and calls `doc.save('incident_<reference>_report.pdf')`.
-- Impact metrics are computed client-side: `patchedCount` is `triageStats['Patched'] + triageStats['Patch']` (triage status only), while the archive page also counts `patching_status` of `Patched`/`Validated`. The two pages can therefore disagree on the same incident.
-- The CSV button writes 16 columns from `impact.affected_servers` and uses `selectedIncident?.incident_reference`, producing `incident_undefined_triage.csv` only if the button were reachable without a selection (it is not).
+- *PDF* — `generatePdfReport()` builds an A4 portrait `jsPDF` document with the same charts embedded; the blob is downloaded as `incident_<reference>_report.pdf`.
+- The same `patchedCount`, `communicatedCount` and `hasNotesCount` feed the dashboard and the report, so the gauge and the exported PDF cannot disagree.
+- The CSV button writes 16 columns from `impact.affected_servers` through the shared `downloadCsv()` helper, producing `incident_<reference>_triage.csv`.
 
 **Extension points / known rough edges.**
-- Dead code: `handleReopenIncident`, `handleToggleCommunicated`, `patchingStats`, `orgAbbrBreakdown`, and the `Send`, `Cpu`, `Layers`, `Network`, `FileSpreadsheet`, `AlertCircle`, `TrendingUp` and `ShieldCheck` imports are unused. `filterOrgAbbr` and `filterPatchingStatus` have no UI control that sets them, so those filters can only ever be cleared.
-- `PUT /api/incidents/:id/hosts/:serverId` is registered twice in `server.ts`. Express uses the first registration, so the effective behaviour (id-or-reference lookup, `db.save()`, no audit entry) comes from the earlier handler and the later one is unreachable.
-- `onOpenCommunications` is a stub prop; wiring it to a `Communications` button is the obvious missing feature.
+- The incident metrics and breakdowns are centralised in `services/incidentAnalysis.ts`; extend that module rather than recomputing values in a view.
+- There is no in-page hand-off to Communications; the page is still reachable only from Inventory's bulk `Contact List` action.
 - When `incident.host_details` is empty the component fabricates demo statuses (first host `Patching`/`Patched`/`Sarah Jenkins`, second `Isolated`, rest `To be contacted`). These values are never persisted, so a reload re-seeds or clears them.
 - There is no denormalised cache: every host edit triggers a `PUT` and no re-fetch, so two analysts on the same incident will overwrite each other last-write-wins.
 - No validation on status transitions, dates or ticket formats; `patching_date` is whatever the date input yields.

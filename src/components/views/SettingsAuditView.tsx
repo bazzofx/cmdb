@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
-  Shield,
   Clock,
   Database,
   Lock,
-  UserCheck,
   Search,
   RefreshCw,
-  HardDrive,
   CheckCircle,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
@@ -16,7 +13,6 @@ import type { AuditLogEvent } from '../../types/index.js';
 
 export const SettingsAuditView: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEvent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [serverCount, setServerCount] = useState(0);
 
@@ -25,7 +21,6 @@ export const SettingsAuditView: React.FC = () => {
   }, []);
 
   const loadAuditLogs = async () => {
-    setLoading(true);
     try {
       const data = await api.getAuditLogs();
       setLogs(data);
@@ -33,8 +28,6 @@ export const SettingsAuditView: React.FC = () => {
       setServerCount(stats.total_servers);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
-    } finally {
-      setLoading(false);
     }
   };
 

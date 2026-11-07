@@ -1,30 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Server,
-  Filter,
   Download,
   Copy,
   Check,
   Search,
   X,
   ChevronDown,
-  Layers,
-  Building2,
-  User,
-  Shield,
   ShieldCheck,
   ShieldAlert,
   SlidersHorizontal,
   Mail,
   ShieldAlert as IncidentIcon,
-  ExternalLink,
-  RefreshCw,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue.js';
+import { downloadCsv } from '../../utils/export.js';
+import { todayIso } from '../../utils/format.js';
 import type { ServerRecord } from '../../types/index.js';
+
+// Canonical column labels and order, shared by the table and the CSV export.
+const COLUMN_LABELS: Record<string, string> = {
+    vm: 'VM Identifier',
+    environment: 'Env',
+    business_unit: 'Business Unit',
+    sub_business_unit: 'Sub-BU',
+    customer: 'Customer',
+    product: 'Product',
+    function: 'Function',
+    support_team: 'Support Team',
+    manager: 'Manager',
+    email: 'Email',
+    primary_ip_address: 'Primary IP',
+    datacenter: 'Datacenter',
+    host: 'Host',
+    power_state: 'Power State',
+    efi_secure_boot: 'Secure Boot',
+    dns_name: 'DNS Name',
+    annotation: 'Annotation',
+};
 
 interface InventoryViewProps {
   initialFilters?: Record<string, string>;
@@ -49,6 +65,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [searchQuery, setSearchQuery] = useState('');
+  // Debounced so typing does not fire one /api/servers request per keystroke.
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
 
@@ -87,49 +105,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     };
   }, []);
 
-  // Filter options loaded from database
-  const [filterOptions, setFilterOptions] = useState<{
-    businessUnits: string[];
-    subBusinessUnits: string[];
-    managers: string[];
-    environments: string[];
-    supportTeams: string[];
-    datacenters: string[];
-    customers: string[];
-    products: string[];
-    functions: string[];
-  }>({
-    businessUnits: [],
-    subBusinessUnits: [],
-    managers: [],
-    environments: [],
-    supportTeams: [],
-    datacenters: [],
-    customers: [],
-    products: [],
-    functions: [],
-  });
-
-  // Canonical Column Labels & Order
-  const COLUMN_LABELS: Record<string, string> = {
-    vm: 'VM Identifier',
-    environment: 'Env',
-    business_unit: 'Business Unit',
-    sub_business_unit: 'Sub-BU',
-    customer: 'Customer',
-    product: 'Product',
-    function: 'Function',
-    support_team: 'Support Team',
-    manager: 'Manager',
-    email: 'Email',
-    primary_ip_address: 'Primary IP',
-    datacenter: 'Datacenter',
-    host: 'Host',
-    power_state: 'Power State',
-    efi_secure_boot: 'Secure Boot',
-    dns_name: 'DNS Name',
-    annotation: 'Annotation',
-  };
 
   // Visible columns configuration ordered according to specification
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -157,45 +132,46 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     api.getServers({ limit: 1000 }).then(res => {
       const all = res.items;
       setAllServers(all);
-      setFilterOptions({
-        businessUnits: Array.from(new Set(all.map(s => s.business_unit).filter(Boolean))),
-        subBusinessUnits: Array.from(new Set(all.map(s => s.sub_business_unit).filter(Boolean))),
-        managers: Array.from(new Set(all.map(s => s.manager).filter(Boolean))),
-        environments: Array.from(new Set(all.map(s => s.environment).filter(Boolean))),
-        supportTeams: Array.from(new Set(all.map(s => s.support_team).filter(Boolean))),
-        datacenters: Array.from(new Set(all.map(s => s.datacenter).filter(Boolean))),
-        customers: Array.from(new Set(all.map(s => s.customer).filter(Boolean))),
-        products: Array.from(new Set(all.map(s => s.product).filter(Boolean))),
-        functions: Array.from(new Set(all.map(s => s.function).filter(Boolean))),
-      });
     });
   }, []);
 
-  // Compute available distinct options and server counts for any column
-  const getColumnOptions = (colKey: string): { value: string; label: string; count: number }[] => {
-    const counts = new Map<string, number>();
-    allServers.forEach(s => {
-      let val = '';
-      if (colKey === 'efi_secure_boot' || colKey === 'secure_boot') {
-        val = s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN';
-      } else {
-        val = String((s as any)[colKey] || '').trim();
+  // Distinct options and per-option counts for every column, computed once
+  // per dataset instead of on every render/header.
+  const columnOptions = useMemo(() => {
+    const options: Record<string, Array<{ value: string; label: string; count: number }>> = {};
+    for (const colKey of Object.keys(COLUMN_LABELS)) {
+      const counts = new Map<string, number>();
+      for (const server of allServers) {
+        const value =
+          colKey === 'efi_secure_boot'
+            ? server.efi_secure_boot === true
+              ? 'TRUE'
+              : server.efi_secure_boot === false
+                ? 'FALSE'
+                : 'UNKNOWN'
+            : String((server as any)[colKey] || '').trim();
+        if (value) counts.set(value, (counts.get(value) || 0) + 1);
       }
-      if (val) {
-        counts.set(val, (counts.get(val) || 0) + 1);
-      }
-    });
+      options[colKey] = Array.from(counts.entries())
+        .map(([value, count]) => ({
+          value,
+          label:
+            colKey === 'efi_secure_boot'
+              ? value === 'TRUE'
+                ? 'Enabled (Compliant)'
+                : value === 'FALSE'
+                  ? 'Disabled (Attention Required)'
+                  : 'Unknown / Missing'
+              : value,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    }
+    options.secure_boot = options.efi_secure_boot;
+    return options;
+  }, [allServers]);
 
-    return Array.from(counts.entries())
-      .map(([value, count]) => ({
-        value,
-        label: colKey === 'efi_secure_boot' || colKey === 'secure_boot'
-          ? (value === 'TRUE' ? 'Enabled (Compliant)' : value === 'FALSE' ? 'Disabled (Attention Required)' : 'Unknown / Missing')
-          : value,
-        count,
-      }))
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  };
+  const getColumnOptions = (colKey: string) => columnOptions[colKey] ?? [];
 
   // Sync when initialFilters changes (e.g. from Navbar 4_Product quick section or external navigation)
   useEffect(() => {
@@ -208,12 +184,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   }, [initialFilters]);
 
-  // Fetch servers when filters, search, sorting, or pagination changes
+  // Fetch servers when filters, debounced search, sorting, or pagination changes
   const fetchServers = () => {
     setLoading(true);
     api.getServers({
       ...filters,
-      q: searchQuery,
+      q: debouncedSearch,
       sort_by: sortBy,
       sort_order: sortOrder,
       page,
@@ -229,7 +205,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   useEffect(() => {
     fetchServers();
-  }, [filters, searchQuery, sortBy, sortOrder, page, pageSize]);
+  }, [filters, debouncedSearch, sortBy, sortOrder, page, pageSize]);
 
   // Handle active filter changes
   const handleFilterChange = (key: string, value: string) => {
@@ -324,31 +300,25 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     ];
 
     const rows = targetList.map(s => [
-      `"${s.vm || ''}"`,
-      `"${s.environment || ''}"`,
-      `"${s.business_unit || ''}"`,
-      `"${s.sub_business_unit || ''}"`,
-      `"${s.customer || ''}"`,
-      `"${s.product || ''}"`,
-      `"${s.function || ''}"`,
-      `"${s.support_team || ''}"`,
-      `"${s.manager || ''}"`,
-      `"${s.email || ''}"`,
-      `"${s.primary_ip_address || ''}"`,
-      `"${s.datacenter || ''}"`,
-      `"${s.host || ''}"`,
-      `"${s.power_state || ''}"`,
-      `"${s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN'}"`,
-      `"${s.dns_name || ''}"`,
+      s.vm || '',
+      s.environment || '',
+      s.business_unit || '',
+      s.sub_business_unit || '',
+      s.customer || '',
+      s.product || '',
+      s.function || '',
+      s.support_team || '',
+      s.manager || '',
+      s.email || '',
+      s.primary_ip_address || '',
+      s.datacenter || '',
+      s.host || '',
+      s.power_state || '',
+      s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN',
+      s.dns_name || '',
     ]);
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `csm_server_inventory_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+    downloadCsv(`csm_server_inventory_${todayIso()}.csv`, headers, rows);
   };
 
   const activeFilterKeys = Object.keys(filters);

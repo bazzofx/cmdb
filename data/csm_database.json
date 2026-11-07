@@ -26,7 +26,8 @@
       "network_2": "CORP-DMZ-NET",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.258Z",
+      "is_missing_from_source": false
     },
     {
       "id": "584de8c5-89ec-4d1c-bc5c-ce743b49905d",
@@ -54,7 +55,8 @@
       "network_2": "OPS-USER-ADMIN-ISOLATED",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "943c3209-2e3f-45fc-a84a-6c103d9c7c93",
@@ -82,7 +84,8 @@
       "network_2": "LON-DC3-PROD-5824",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "0cddf3b8-cbf5-4dab-93b6-8b58c585de9e",
@@ -110,7 +113,8 @@
       "network_2": "LON-DC3-PROD-5824",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "4fe6b2d8-69cb-4e9f-846b-44caacbdc099",
@@ -138,7 +142,8 @@
       "network_2": "LON-DC3-PROD-5824",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "140ad80f-4b83-47e1-a3c0-cf55faedbb44",
@@ -166,7 +171,8 @@
       "network_2": "LON-DC3-PROD-5824",
       "network_3": "SECURE-BACKUP-NET",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "4934ca1c-3b63-41f8-9140-1dfe96a1fce2",
@@ -194,7 +200,8 @@
       "network_2": "OPS-USER-ADMIN-ISOLATED",
       "network_3": "SECURE-BACKUP-NET",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.259Z",
+      "is_missing_from_source": false
     },
     {
       "id": "5744ddf0-d7ce-4834-a718-e78abc42f1d1",
@@ -222,7 +229,8 @@
       "network_2": "OPS-USER-ADMIN-ISOLATED",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.260Z",
+      "is_missing_from_source": false
     },
     {
       "id": "97645c30-cfb3-437f-8862-0b375d583e5e",
@@ -250,7 +258,8 @@
       "network_2": "LON-DC3-PROD-5824",
       "network_3": "",
       "imported_at": "2026-10-30T01:59:59.500Z",
-      "updated_at": "2026-10-30T01:59:59.500Z"
+      "updated_at": "2026-11-07T16:34:33.260Z",
+      "is_missing_from_source": false
     }
   ],
   "incidents": [

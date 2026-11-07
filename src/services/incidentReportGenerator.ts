@@ -10,7 +10,6 @@ import {
   WidthType,
   HeadingLevel,
   AlignmentType,
-  BorderStyle,
   ImageRun,
 } from 'docx';
 import type { Incident, IncidentImpact, ServerRecord, IncidentHostDetail } from '../types/index.js';
@@ -142,7 +141,7 @@ export function generateMarkdownReport(data: ReportData): string {
 // 2. WORD (.DOCX) REPORT GENERATOR (WITH EMBEDDED PIE, DONUT & BAR CHARTS)
 // ============================================================================
 export async function generateWordDocx(data: ReportData): Promise<Blob> {
-  const { incident, metrics, buBreakdown, productBreakdown, managerAccountability, affectedList, hostDetails } = data;
+  const { incident, metrics, buBreakdown, affectedList, hostDetails } = data;
   const now = new Date().toLocaleString();
 
   // Generate high-resolution visual chart images for DOCX embedding
@@ -449,7 +448,7 @@ export async function generateWordDocx(data: ReportData): Promise<Blob> {
 // 3. PDF REPORT GENERATOR (WITH HIGH-RESOLUTION PIE, DONUT & BAR CHARTS)
 // ============================================================================
 export function generatePdfReport(data: ReportData): jsPDF {
-  const { incident, metrics, buBreakdown, productBreakdown, managerAccountability, affectedList, hostDetails } = data;
+  const { incident, metrics, buBreakdown, affectedList, hostDetails } = data;
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
@@ -457,7 +456,6 @@ export function generatePdfReport(data: ReportData): jsPDF {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
   let y = 35;
 
   // ---------------------------------------------------------

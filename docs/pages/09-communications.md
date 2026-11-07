@@ -73,17 +73,17 @@ Because it is not in the sidebar, the practical entry point is a selection in In
 ## 5. Common workflows
 
 1. **Scope the audience.** In Inventory, filter or search, tick the servers in scope, then press `Contact List` in the blue bulk bar. `App` stores the ids in `targetedServerIds` and switches to this view. The directory now lists only the managers behind those servers.
-2. **Choose and fill the template.** Pick one of the five tabs. Edit `Reference`, `Title / Subject`, `Severity` and `Target Due Date`. Every change re-requests the preview, so the body updates as you type (one request per keystroke).
+2. **Choose and fill the template.** Pick one of the five tabs. Edit `Reference`, `Title / Subject`, `Severity` and `Target Due Date`. Free-text edits are debounced by 400 ms, so the body updates as you pause rather than on every keystroke.
 3. **Verify who is excluded.** Check `Missing Email Addresses` and the amber cards. These managers cannot be selected and are not in the default recipient set; chase the data gap in Inventory first.
 4. **Copy and send.** Use `Copy All` for every valid address or tick a subset and use `Copy Selected (N)`, then `Copy Formatted Email` for the subject and body. Alternatively press `Open in Email Client`, which opens a `mailto:` link with the selected addresses in **BCC**, plus the encoded subject and body.
 5. **Record that it was done.** There is no acknowledgement here. Return to Incidents and mark the hosts contacted — the phone icon per row, or `Notify All` on the dashboard — so the incident's outreach figures reflect reality.
 
 ## 6. Gotchas and guardrails
 
-- **This page is not reachable from Incidents or the Archive in the current build.** The triage view declares an `onOpenCommunications` prop and `App` passes a handler, but the button that would call it does not exist. The only caller of the navigation handler is Inventory's `Contact List` button.
+- **This page is not reachable from Incidents or the Archive in the current build.** No triage or archive button navigates here; the only caller of the navigation handler is Inventory's `Contact List` button.
 - With no `server_ids`, the server substitutes **every** server in the estate. Opening the view cold therefore shows an organisation-wide contact list, not an incident scope.
 - The preview is built for the first contact only. All recipients share one subject and body that names one manager (`{{manager_name}}`) and one business unit. Copying the body as-is and sending it to the whole BCC list is a mis-send waiting to happen; there is no per-recipient body generation.
-- The preview re-fetches on every keystroke in `Reference` and `Title / Subject`, and on every date/severity/template change. There is no debounce, no cancellation and no request-state guard, so responses can arrive out of order.
+- Free-text edits are debounced by 400 ms, but there is no request cancellation or sequence guard, so a slow response can still arrive after a newer one.
 - Each response re-selects **all** valid emails by default, discarding any manual ticks from the previous fetch. Tick a subset last, immediately before copying.
 - There is no send, queue, delivery log or persistence. Nothing this page produces is stored against the incident, and closing the view loses the selection and the edited variables.
 - `targetedServerIds` in `App` is never cleared, so a later visit can silently reuse the previous selection — including one made for a different incident.
@@ -132,9 +132,9 @@ The response is `{ total_contacts, valid_emails, missing_emails, contacts, previ
 
 **Cross-view navigation.** None is performed by the component. Entry is `App.handleOpenCommunicationsWithServers(ids)`, which sets `targetedServerIds` and `currentView = 'communications'`; there is no return path except the sidebar. No params are appended to any URL.
 
-**Report and file plumbing.** `Export CSV` builds the file client-side from `data.contacts` and downloads it as `stakeholder_contacts_<YYYY-MM-DD>.csv`. Card copy actions use `navigator.clipboard.writeText`; the formatted-email copy prefixes `Subject: …` then a blank line and the body. `Open in Email Client` assigns `window.location.href = mailto:?bcc=…&subject=…&body=…`. Nothing here uses the incident report generator.
+**Report and file plumbing.** `Export CSV` builds the file client-side from `data.contacts` through the shared `downloadCsv()` helper (quoted cells, UTF-8 BOM) and downloads it as `stakeholder_contacts_<YYYY-MM-DD>.csv`. Card copy actions use `navigator.clipboard.writeText`; the formatted-email copy prefixes `Subject: …` then a blank line and the body. `Open in Email Client` assigns `window.location.href = mailto:?bcc=…&subject=…&body=…`. Nothing here uses the incident report generator.
 
-**Extension points / known rough edges.** Add a debounce or an explicit "Preview" action to stop request-per-keystroke; add a per-contact preview selector so the body is rendered per recipient; wire `onOpenCommunications` in the triage view to make the page reachable from an incident (and pass its reference, title, severity and affected ids); add a send endpoint plus a communications log if delivery needs to be evidenced; persist or clear `targetedServerIds` so scope does not leak between visits. The template library lives only in `server.ts`, so changing wording means a code change and a redeploy.
+**Extension points / known rough edges.** Add a request-cancellation/sequence guard to the preview; add a per-contact preview selector so the body is rendered per recipient; add an entry point in the triage/archive views so the page is reachable with the incident reference, title, severity and affected ids; add a send endpoint plus a communications log if delivery needs to be evidenced; persist or clear `targetedServerIds` so scope does not leak between visits. The template library lives only in `server.ts`, so changing wording means a code change and a redeploy.
 
 ## 8. Related pages
 

@@ -1,16 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Network as NetIcon,
   Server,
   Database,
   Cpu,
-  Layers,
   Building2,
-  HardDrive,
-  ShieldCheck,
-  ShieldAlert,
-  ArrowRight,
-  ExternalLink,
   Share2,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
@@ -140,7 +134,6 @@ export const InfrastructureMapView: React.FC<InfrastructureMapViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {Array.from(hypervisorMap.entries()).map(([host, vms]) => {
-                  const isMultiVm = vms.length > 1;
                   const distinctBUs = Array.from(new Set(vms.map(v => v.business_unit).filter(Boolean)));
                   const isCrossTenant = distinctBUs.length > 1;
 

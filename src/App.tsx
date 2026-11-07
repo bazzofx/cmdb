@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar } from './components/layout/Navbar.js';
 import { Sidebar } from './components/layout/Sidebar.js';
 import { GlobalSearch } from './components/common/GlobalSearch.js';
@@ -19,7 +19,7 @@ import { DataManagementView } from './components/views/DataManagementView.js';
 import { SettingsAuditView } from './components/views/SettingsAuditView.js';
 
 import { api } from './services/api.js';
-import type { DashboardMetrics, AuditLogEvent, ServerRecord } from './types/index.js';
+import type { DashboardMetrics, AuditLogEvent, Incident } from './types/index.js';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('overview');
@@ -38,9 +38,10 @@ export function App() {
   // Telemetry & metrics state
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEvent[]>([]);
-  const [activeIncidentCount, setActiveIncidentCount] = useState<number>(1);
+  const [activeIncidentCount, setActiveIncidentCount] = useState<number>(0);
   const [archivedIncidentCount, setArchivedIncidentCount] = useState<number>(0);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const mainRef = useRef<HTMLElement>(null);
 
   // Global Keyboard shortcuts: '/' or 'Cmd+K' / 'Ctrl+K' opens search
   useEffect(() => {
@@ -55,39 +56,46 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setLoadingMetrics(true);
     try {
       const [stats, logs, incidents] = await Promise.all([
         api.getStats(),
         api.getAuditLogs(),
-        api.getIncidents().catch(() => []),
+        api.getIncidents().catch(() => [] as Incident[]),
       ]);
       setMetrics(stats);
       setRecentLogs(logs);
-      const active = (incidents || []).filter(i => i.status !== 'Closed' && i.status !== 'Archived');
-      const archived = (incidents || []).filter(i => i.status === 'Closed' || i.status === 'Archived');
-      setActiveIncidentCount(active.length);
-      setArchivedIncidentCount(archived.length);
+
+      let active = 0;
+      let archived = 0;
+      for (const incident of incidents ?? []) {
+        if (incident.status === 'Closed' || incident.status === 'Archived') archived += 1;
+        else active += 1;
+      }
+      setActiveIncidentCount(active);
+      setArchivedIncidentCount(archived);
     } catch (err) {
       console.error('Failed to load metrics:', err);
     } finally {
       setLoadingMetrics(false);
     }
-  };
-
-  useEffect(() => {
-    loadDashboardData();
   }, []);
 
+  useEffect(() => {
+    void loadDashboardData();
+  }, [loadDashboardData]);
+
+  const handleSelectServer = useCallback((id: string) => setSelectedServerId(id), []);
+
   // Navigation router helper with filter arguments
-  const handleNavigate = (view: string, filterParams?: Record<string, string>) => {
+  const handleNavigate = useCallback((view: string, filterParams?: Record<string, string>) => {
     if (filterParams !== undefined) {
       setInventoryFilters(filterParams);
     }
     setCurrentView(view);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // Launch Incident with Server IDs
   const handleOpenIncidentWithServers = (serverIds: string[]) => {
@@ -107,7 +115,7 @@ export function App() {
       <Navbar
         onOpenSearch={() => setIsSearchOpen(true)}
         onNavigate={handleNavigate}
-        serverCount={metrics?.total_servers || 0}
+        serverCount={metrics?.total_servers ?? 0}
         openIncidentsCount={activeIncidentCount}
       />
 
@@ -121,21 +129,21 @@ export function App() {
           metrics={{
             serverCount: metrics?.total_servers || 0,
             buCount: metrics?.total_business_units || 0,
-            productCount: metrics?.total_products || 3,
+            productCount: metrics?.total_products ?? 0,
             incidentCount: activeIncidentCount,
             archivedIncidentCount: archivedIncidentCount,
           }}
         />
 
         {/* 3. Main Workspace Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#070B14]">
+        <main ref={mainRef} className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#070B14]">
           {currentView === 'overview' && (
             <OverviewView
               metrics={metrics}
               recentLogs={recentLogs}
               loading={loadingMetrics}
               onNavigate={handleNavigate}
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
             />
           )}
 
@@ -144,7 +152,7 @@ export function App() {
               initialFilters={inventoryFilters}
               onFiltersChange={setInventoryFilters}
               onClearFilters={() => setInventoryFilters({})}
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onOpenIncidentWithServers={handleOpenIncidentWithServers}
               onOpenCommunicationsWithServers={handleOpenCommunicationsWithServers}
             />
@@ -152,14 +160,14 @@ export function App() {
 
           {currentView === 'business-units' && (
             <BusinessUnitsView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
             />
           )}
 
           {currentView === 'products' && (
             <ProductsView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
               onOpenIncidentWithServers={handleOpenIncidentWithServers}
             />
@@ -167,13 +175,13 @@ export function App() {
 
           {currentView === 'ownership-explorer' && (
             <OwnershipExplorerView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
             />
           )}
 
           {currentView === 'infrastructure-map' && (
             <InfrastructureMapView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
             />
           )}
@@ -181,8 +189,7 @@ export function App() {
           {currentView === 'incident-triage' && (
             <IncidentTriageView
               initialServerIds={targetedServerIds}
-              onSelectServer={id => setSelectedServerId(id)}
-              onOpenCommunications={handleOpenCommunicationsWithServers}
+              onSelectServer={handleSelectServer}
               onNavigateToArchive={() => setCurrentView('archived-incidents')}
               onRefreshIncidents={loadDashboardData}
             />
@@ -190,7 +197,7 @@ export function App() {
 
           {currentView === 'archived-incidents' && (
             <ArchivedIncidentsView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onNavigateToActiveIncidents={() => setCurrentView('incident-triage')}
               onRefreshIncidents={loadDashboardData}
             />
@@ -204,7 +211,7 @@ export function App() {
 
           {currentView === 'reports' && (
             <ReportsView
-              onSelectServer={id => setSelectedServerId(id)}
+              onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
             />
           )}
@@ -225,7 +232,7 @@ export function App() {
       <GlobalSearch
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        onSelectServer={id => setSelectedServerId(id)}
+        onSelectServer={handleSelectServer}
       />
 
       {/* Server Detail Drawer */}

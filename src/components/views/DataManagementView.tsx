@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Database,
   Upload,
@@ -6,10 +6,8 @@ import {
   Check,
   AlertTriangle,
   ArrowRight,
-  ArrowLeft,
   RefreshCw,
   Clock,
-  Download,
   AlertCircle,
   FileText,
 } from 'lucide-react';
@@ -29,7 +27,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({ onRefres
   const [detectedColumns, setDetectedColumns] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [previewRows, setPreviewRows] = useState<any[]>([]);
-  const [totalRows, setTotalRows] = useState<number>(0);
   const [strategy, setStrategy] = useState<'insert' | 'update' | 'synchronise'>('update');
   const [importSummary, setImportSummary] = useState<ImportHistoryItem | null>(null);
   const [history, setHistory] = useState<ImportHistoryItem[]>([]);
@@ -89,7 +86,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({ onRefres
       setDetectedColumns(res.detected_columns);
       setColumnMapping(res.suggested_mapping);
       setPreviewRows(res.preview);
-      setTotalRows(res.total_rows);
       setCurrentStage(2);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to process CSV');

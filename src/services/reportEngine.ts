@@ -14,6 +14,14 @@
 //  - Missing values stay as "" in the data and are rendered as "—" by the view.
 
 import type { Incident, PatchCampaign, PatchTarget, ServerRecord } from '../types/index.js';
+import {
+  formatDate as isoDate,
+  formatList,
+  percent as pct,
+  text,
+  unique as uniq,
+} from '../utils/format.js';
+import { toCsv } from '../utils/export.js';
 
 export type ReportColumnKind = 'text' | 'mono' | 'num' | 'badge';
 
@@ -66,31 +74,9 @@ export interface ReportDataset {
 // Small helpers
 // ---------------------------------------------------------------------------
 
-const text = (value: unknown): string =>
-  value === null || value === undefined ? '' : String(value).trim();
-
 const num = (value: unknown): number => {
   const parsed = typeof value === 'number' ? value : parseInt(text(value), 10);
   return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const uniq = (values: Array<string | undefined | null>): string[] =>
-  Array.from(new Set(values.map(text).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-
-const formatList = (values: Array<string | undefined | null>, max = 3): string => {
-  const list = uniq(values);
-  if (list.length === 0) return '';
-  if (list.length <= max) return list.join(', ');
-  return `${list.slice(0, max).join(', ')} +${list.length - max}`;
-};
-
-const pct = (part: number, total: number): number =>
-  total > 0 ? Math.round((part / total) * 100) : 0;
-
-const isoDate = (value?: string | null): string => {
-  if (!value) return '';
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? text(value) : parsed.toISOString().slice(0, 10);
 };
 
 const daysBetween = (from: string, to: string): number => {
@@ -1245,15 +1231,13 @@ export function sortReportRows(rows: ReportRow[], column: string | null, directi
   });
 }
 
-const csvCell = (value: unknown): string => {
-  const raw = text(value);
-  return `"${raw.replace(/"/g, '""')}"`;
-};
-
 export function reportToCsv(columns: ReportColumn[], rows: ReportRow[]): string {
-  const header = columns.map(column => csvCell(column.label)).join(',');
-  const body = rows.map(row => columns.map(column => csvCell(row[column.key])).join(','));
-  return `\uFEFF${[header, ...body].join('\r\n')}`;
+  return toCsv(
+    columns.map(column => column.label),
+    rows.map(row =>
+      columns.map(column => row[column.key] as string | number | boolean | null | undefined)
+    )
+  );
 }
 
 export function reportToJson(
