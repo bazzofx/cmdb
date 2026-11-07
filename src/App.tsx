@@ -81,8 +81,8 @@ export function App() {
   }, []);
 
   // Navigation router helper with filter arguments
-  const handleNavigate = (view: string, filterParams: Record<string, string> = {}) => {
-    if (Object.keys(filterParams).length > 0) {
+  const handleNavigate = (view: string, filterParams?: Record<string, string>) => {
+    if (filterParams !== undefined) {
       setInventoryFilters(filterParams);
     }
     setCurrentView(view);
@@ -142,6 +142,8 @@ export function App() {
           {currentView === 'inventory' && (
             <InventoryView
               initialFilters={inventoryFilters}
+              onFiltersChange={setInventoryFilters}
+              onClearFilters={() => setInventoryFilters({})}
               onSelectServer={id => setSelectedServerId(id)}
               onOpenIncidentWithServers={handleOpenIncidentWithServers}
               onOpenCommunicationsWithServers={handleOpenCommunicationsWithServers}

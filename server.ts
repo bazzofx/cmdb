@@ -28,6 +28,47 @@ const DATA_DIR = path.resolve(__dirname, 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'csm_database.json');
 const CSV_SOURCE_FILE = path.resolve(__dirname, 'public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv');
 
+export function cleanString(val: any): string {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/\0/g, '') // remove null characters
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // remove zero-width / BOM chars
+    .replace(/\r/g, '') // strip carriage returns
+    .trim(); // trim leading and trailing whitespace
+}
+
+export function sanitizeServerRecord(record: Partial<ServerRecord>): ServerRecord {
+  return {
+    id: record.id || crypto.randomUUID(),
+    host: cleanString(record.host),
+    vm: cleanString(record.vm),
+    support_team: cleanString(record.support_team),
+    environment: cleanString(record.environment),
+    manager: cleanString(record.manager),
+    email: cleanString(record.email).toLowerCase(),
+    customer: cleanString(record.customer),
+    power_state: cleanString(record.power_state) || 'poweredOn',
+    dns_name: cleanString(record.dns_name),
+    primary_ip_address: cleanString(record.primary_ip_address),
+    efi_secure_boot: record.efi_secure_boot !== undefined ? record.efi_secure_boot : null,
+    annotation: cleanString(record.annotation),
+    business_unit: cleanString(record.business_unit),
+    sub_business_unit: cleanString(record.sub_business_unit),
+    product: cleanString(record.product),
+    function: cleanString(record.function),
+    business_environment: cleanString(record.business_environment || record.environment),
+    organisation_short_code: cleanString(record.organisation_short_code),
+    organisation_abbreviated: cleanString(record.organisation_abbreviated),
+    datacenter: cleanString(record.datacenter),
+    network_1: cleanString(record.network_1),
+    network_2: cleanString(record.network_2),
+    network_3: cleanString(record.network_3),
+    imported_at: record.imported_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_missing_from_source: record.is_missing_from_source || false,
+  };
+}
+
 interface DatabaseSchema {
   servers: ServerRecord[];
   incidents: Incident[];
@@ -55,7 +96,11 @@ class Database {
       try {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(raw);
-        console.log(`[DB] Loaded ${this.data.servers.length} servers from ${DB_FILE}`);
+        // Clean and sanitize all server records on load (stripping whitespace and null characters)
+        if (Array.isArray(this.data.servers)) {
+          this.data.servers = this.data.servers.map(s => sanitizeServerRecord(s));
+        }
+        console.log(`[DB] Loaded and sanitized ${this.data.servers.length} servers from ${DB_FILE}`);
       } catch (err) {
         console.error('[DB] Error loading database file, re-seeding...', err);
         this.seedFromDefaultCsv();
@@ -64,6 +109,7 @@ class Database {
       console.log('[DB] Database file not found. Seeding initial data from CSV...');
       this.seedFromDefaultCsv();
     }
+    this.save();
   }
 
   save() {
@@ -232,7 +278,7 @@ export function parseCsvToServers(csvText: string): ServerRecord[] {
   const getCol = (cols: string[], name: string): string => {
     const idx = headerMap[name];
     if (idx !== undefined && cols[idx] !== undefined) {
-      return cols[idx].trim();
+      return cleanString(cols[idx]);
     }
     return '';
   };
@@ -285,7 +331,7 @@ export function parseCsvToServers(csvText: string): ServerRecord[] {
       updated_at: now,
     };
 
-    records.push(record);
+    records.push(sanitizeServerRecord(record));
   }
 
   return records;
@@ -411,6 +457,10 @@ async function startServer() {
       secure_boot,
       network,
       host,
+      vm,
+      primary_ip_address,
+      email,
+      dns_name,
       q,
       sort_by = 'host',
       sort_order = 'asc',
@@ -418,46 +468,54 @@ async function startServer() {
       limit = '50',
     } = req.query as Record<string, string>;
 
-    // Multi-attribute filtering
+    // Multi-attribute filtering with cleanString sanitization
     if (business_unit) {
-      const bus = business_unit.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => bus.includes((s.business_unit || '').toLowerCase()));
+      const bus = business_unit.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => {
+        const bu = cleanString(s.business_unit).toLowerCase();
+        const subBu = cleanString(s.sub_business_unit).toLowerCase();
+        return bus.includes(bu) || bus.includes(subBu);
+      });
     }
     if (sub_business_unit) {
-      const subs = sub_business_unit.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => subs.includes((s.sub_business_unit || '').toLowerCase()));
+      const subs = sub_business_unit.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => {
+        const subBu = cleanString(s.sub_business_unit).toLowerCase();
+        const bu = cleanString(s.business_unit).toLowerCase();
+        return subs.includes(subBu) || subs.includes(bu);
+      });
     }
     if (customer) {
-      const custs = customer.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => custs.includes((s.customer || '').toLowerCase()));
+      const custs = customer.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => custs.includes(cleanString(s.customer).toLowerCase()));
     }
     if (manager) {
-      const mgrs = manager.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => mgrs.includes((s.manager || '').toLowerCase()));
+      const mgrs = manager.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => mgrs.includes(cleanString(s.manager).toLowerCase()));
     }
     if (support_team) {
-      const sts = support_team.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => sts.includes((s.support_team || '').toLowerCase()));
+      const sts = support_team.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => sts.includes(cleanString(s.support_team).toLowerCase()));
     }
     if (environment) {
-      const envs = environment.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => envs.includes((s.environment || '').toLowerCase()));
+      const envs = environment.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => envs.includes(cleanString(s.environment).toLowerCase()));
     }
     if (power_state) {
-      const ps = power_state.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => ps.includes((s.power_state || '').toLowerCase()));
+      const ps = power_state.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => ps.includes(cleanString(s.power_state).toLowerCase()));
     }
     if (datacenter) {
-      const dcs = datacenter.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => dcs.includes((s.datacenter || '').toLowerCase()));
+      const dcs = datacenter.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => dcs.includes(cleanString(s.datacenter).toLowerCase()));
     }
     if (product) {
-      const prods = product.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => prods.includes((s.product || '').toLowerCase()));
+      const prods = product.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => prods.includes(cleanString(s.product).toLowerCase()));
     }
     if (func) {
-      const funcs = func.split(',').map(s => s.trim().toLowerCase());
-      list = list.filter(s => funcs.includes((s.function || '').toLowerCase()));
+      const funcs = func.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => funcs.includes(cleanString(s.function).toLowerCase()));
     }
     if (secure_boot !== undefined && secure_boot !== '') {
       if (secure_boot === 'TRUE' || secure_boot === 'true') {
@@ -469,16 +527,33 @@ async function startServer() {
       }
     }
     if (network) {
-      const net = network.toLowerCase();
+      const net = cleanString(network).toLowerCase();
       list = list.filter(
         s =>
-          (s.network_1 || '').toLowerCase().includes(net) ||
-          (s.network_2 || '').toLowerCase().includes(net) ||
-          (s.network_3 || '').toLowerCase().includes(net)
+          cleanString(s.network_1).toLowerCase().includes(net) ||
+          cleanString(s.network_2).toLowerCase().includes(net) ||
+          cleanString(s.network_3).toLowerCase().includes(net)
       );
     }
     if (host) {
-      list = list.filter(s => (s.host || '').toLowerCase() === host.toLowerCase());
+      const h = cleanString(host).toLowerCase();
+      list = list.filter(s => cleanString(s.host).toLowerCase() === h);
+    }
+    if (vm) {
+      const vms = vm.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => vms.includes(cleanString(s.vm).toLowerCase()));
+    }
+    if (primary_ip_address) {
+      const ips = primary_ip_address.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => ips.includes(cleanString(s.primary_ip_address).toLowerCase()));
+    }
+    if (email) {
+      const emails = email.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => emails.includes(cleanString(s.email).toLowerCase()));
+    }
+    if (dns_name) {
+      const dns = dns_name.split(',').map(s => cleanString(s).toLowerCase()).filter(Boolean);
+      list = list.filter(s => dns.includes(cleanString(s.dns_name).toLowerCase()));
     }
 
     // Global Query inside table
@@ -627,36 +702,15 @@ async function startServer() {
       return res.status(400).json({ error: 'Host and VM fields are required' });
     }
 
-    const newServer: ServerRecord = {
+    const newServer = sanitizeServerRecord({
+      ...body,
       id: crypto.randomUUID(),
-      host: body.host,
-      vm: body.vm,
-      support_team: body.support_team || '',
-      environment: body.environment || '',
-      manager: body.manager || '',
-      email: (body.email || '').toLowerCase(),
-      customer: body.customer || '',
-      power_state: body.power_state || 'poweredOn',
-      dns_name: body.dns_name || '',
-      primary_ip_address: body.primary_ip_address || '',
-      efi_secure_boot: body.efi_secure_boot !== undefined ? body.efi_secure_boot : null,
-      annotation: body.annotation || '',
-      business_unit: body.business_unit || '',
-      sub_business_unit: body.sub_business_unit || '',
-      product: body.product || '',
-      function: body.function || '',
-      business_environment: body.business_environment || body.environment || '',
-      organisation_short_code: body.organisation_short_code || '',
-      organisation_abbreviated: body.organisation_abbreviated || '',
-      datacenter: body.datacenter || '',
-      network_1: body.network_1 || '',
-      network_2: body.network_2 || '',
-      network_3: body.network_3 || '',
       imported_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    });
 
     db.data.servers.unshift(newServer);
+    db.save();
     db.logAudit(body.updated_by || 'SecOps Admin', 'CREATE_SERVER', 'SERVER', newServer.id, null, newServer, `Created server ${newServer.host} (${newServer.vm})`);
     res.status(201).json(newServer);
   });
@@ -668,14 +722,15 @@ async function startServer() {
     }
 
     const prev = db.data.servers[idx];
-    const updated: ServerRecord = {
+    const updated = sanitizeServerRecord({
       ...prev,
       ...req.body,
       id: prev.id, // preserve id
       updated_at: new Date().toISOString(),
-    };
+    });
 
     db.data.servers[idx] = updated;
+    db.save();
     db.logAudit(req.body.updated_by || 'SecOps Admin', 'UPDATE_SERVER', 'SERVER', updated.id, prev, updated, `Updated attributes for ${updated.host}`);
     res.json(updated);
   });

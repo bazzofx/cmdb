@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Server,
   Filter,
@@ -19,12 +19,17 @@ import {
   ShieldAlert as IncidentIcon,
   ExternalLink,
   RefreshCw,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import type { ServerRecord } from '../../types/index.js';
 
 interface InventoryViewProps {
   initialFilters?: Record<string, string>;
+  onFiltersChange?: (filters: Record<string, string>) => void;
+  onClearFilters?: () => void;
   onSelectServer: (id: string) => void;
   onOpenCommunicationsWithServers: (serverIds: string[]) => void;
   onOpenIncidentWithServers: (serverIds: string[]) => void;
@@ -32,6 +37,8 @@ interface InventoryViewProps {
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
   initialFilters = {},
+  onFiltersChange,
+  onClearFilters,
   onSelectServer,
   onOpenCommunicationsWithServers,
   onOpenIncidentWithServers,
@@ -47,8 +54,38 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   // Active filter state
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters);
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+
+  // Column header sorting and interactive filter dropdown state
+  const [sortBy, setSortBy] = useState<string>('vm');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [activeHeaderDropdown, setActiveHeaderDropdown] = useState<string | null>(null);
+  const [columnSearchQuery, setColumnSearchQuery] = useState<string>('');
+  const [allServers, setAllServers] = useState<ServerRecord[]>([]);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close column header dropdown on click outside or Escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setActiveHeaderDropdown(null);
+        setColumnSearchQuery('');
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveHeaderDropdown(null);
+        setColumnSearchQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Filter options loaded from database
   const [filterOptions, setFilterOptions] = useState<{
@@ -73,33 +110,53 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     functions: [],
   });
 
-  // Visible columns configuration (Section 7.1)
+  // Canonical Column Labels & Order
+  const COLUMN_LABELS: Record<string, string> = {
+    vm: 'VM Identifier',
+    environment: 'Env',
+    business_unit: 'Business Unit',
+    sub_business_unit: 'Sub-BU',
+    customer: 'Customer',
+    product: 'Product',
+    function: 'Function',
+    support_team: 'Support Team',
+    manager: 'Manager',
+    email: 'Email',
+    primary_ip_address: 'Primary IP',
+    datacenter: 'Datacenter',
+    host: 'Host',
+    power_state: 'Power State',
+    efi_secure_boot: 'Secure Boot',
+    dns_name: 'DNS Name',
+    annotation: 'Annotation',
+  };
+
+  // Visible columns configuration ordered according to specification
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-    host: true,
     vm: true,
+    environment: true,
     business_unit: true,
     sub_business_unit: true,
+    customer: true,
+    product: true,
+    function: true,
+    support_team: true,
     manager: true,
     email: true,
-    support_team: true,
-    environment: true,
-    customer: true,
-    dns_name: true,
     primary_ip_address: true,
     datacenter: true,
-    power_state: true,
-    efi_secure_boot: true,
-    product: false,
-    function: false,
+    host: false,
+    power_state: false,
+    efi_secure_boot: false,
+    dns_name: false,
     annotation: false,
-    network_1: false,
-    network_2: false,
   });
 
-  // Load filter options on mount
+  // Load full server list on mount to compute column options and counts
   useEffect(() => {
     api.getServers({ limit: 1000 }).then(res => {
       const all = res.items;
+      setAllServers(all);
       setFilterOptions({
         businessUnits: Array.from(new Set(all.map(s => s.business_unit).filter(Boolean))),
         subBusinessUnits: Array.from(new Set(all.map(s => s.sub_business_unit).filter(Boolean))),
@@ -114,9 +171,35 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     });
   }, []);
 
-  // Sync when initialFilters changes (e.g. from Navbar 4_Product quick section)
+  // Compute available distinct options and server counts for any column
+  const getColumnOptions = (colKey: string): { value: string; label: string; count: number }[] => {
+    const counts = new Map<string, number>();
+    allServers.forEach(s => {
+      let val = '';
+      if (colKey === 'efi_secure_boot' || colKey === 'secure_boot') {
+        val = s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN';
+      } else {
+        val = String((s as any)[colKey] || '').trim();
+      }
+      if (val) {
+        counts.set(val, (counts.get(val) || 0) + 1);
+      }
+    });
+
+    return Array.from(counts.entries())
+      .map(([value, count]) => ({
+        value,
+        label: colKey === 'efi_secure_boot' || colKey === 'secure_boot'
+          ? (value === 'TRUE' ? 'Enabled (Compliant)' : value === 'FALSE' ? 'Disabled (Attention Required)' : 'Unknown / Missing')
+          : value,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  };
+
+  // Sync when initialFilters changes (e.g. from Navbar 4_Product quick section or external navigation)
   useEffect(() => {
-    if (initialFilters && Object.keys(initialFilters).length > 0) {
+    if (initialFilters !== undefined) {
       setFilters(initialFilters);
       if (initialFilters.product) {
         setVisibleColumns(prev => ({ ...prev, product: true }));
@@ -125,12 +208,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   }, [initialFilters]);
 
-  // Fetch servers when filters, search, or pagination changes
+  // Fetch servers when filters, search, sorting, or pagination changes
   const fetchServers = () => {
     setLoading(true);
     api.getServers({
       ...filters,
       q: searchQuery,
+      sort_by: sortBy,
+      sort_order: sortOrder,
       page,
       limit: pageSize,
     })
@@ -144,7 +229,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   useEffect(() => {
     fetchServers();
-  }, [filters, searchQuery, page, pageSize]);
+  }, [filters, searchQuery, sortBy, sortOrder, page, pageSize]);
 
   // Handle active filter changes
   const handleFilterChange = (key: string, value: string) => {
@@ -155,6 +240,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       } else {
         next[key] = value;
       }
+      onFiltersChange?.(next);
       return next;
     });
     setPage(1);
@@ -164,6 +250,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setFilters(prev => {
       const next = { ...prev };
       delete next[key];
+      onFiltersChange?.(next);
       return next;
     });
     setPage(1);
@@ -173,6 +260,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setFilters({});
     setSearchQuery('');
     setPage(1);
+    onClearFilters?.();
+    onFiltersChange?.({});
   };
 
   // Bulk Selection
@@ -216,41 +305,41 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     if (targetList.length === 0) return;
 
     const headers = [
-      'Host',
-      'VM',
+      'VM Identifier',
+      'Env',
       'Business Unit',
-      'Sub Business Unit',
-      'Manager',
-      'Email',
-      'Support Team',
-      'Environment',
+      'Sub-BU',
       'Customer',
-      'Power State',
-      'DNS Name',
-      'Primary IP Address',
-      'EFI Secure Boot',
-      'Datacenter',
       'Product',
       'Function',
+      'Support Team',
+      'Manager',
+      'Email',
+      'Primary IP',
+      'Datacenter',
+      'Host',
+      'Power State',
+      'Secure Boot',
+      'DNS Name',
     ];
 
     const rows = targetList.map(s => [
-      `"${s.host}"`,
-      `"${s.vm}"`,
+      `"${s.vm || ''}"`,
+      `"${s.environment || ''}"`,
       `"${s.business_unit || ''}"`,
       `"${s.sub_business_unit || ''}"`,
-      `"${s.manager || ''}"`,
-      `"${s.email || ''}"`,
-      `"${s.support_team || ''}"`,
-      `"${s.environment || ''}"`,
       `"${s.customer || ''}"`,
-      `"${s.power_state || ''}"`,
-      `"${s.dns_name || ''}"`,
-      `"${s.primary_ip_address || ''}"`,
-      `"${s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN'}"`,
-      `"${s.datacenter || ''}"`,
       `"${s.product || ''}"`,
       `"${s.function || ''}"`,
+      `"${s.support_team || ''}"`,
+      `"${s.manager || ''}"`,
+      `"${s.email || ''}"`,
+      `"${s.primary_ip_address || ''}"`,
+      `"${s.datacenter || ''}"`,
+      `"${s.host || ''}"`,
+      `"${s.power_state || ''}"`,
+      `"${s.efi_secure_boot === true ? 'TRUE' : s.efi_secure_boot === false ? 'FALSE' : 'UNKNOWN'}"`,
+      `"${s.dns_name || ''}"`,
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -264,10 +353,234 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const activeFilterKeys = Object.keys(filters);
 
+  // Interactive Column Header Component with integrated Sorting & Filtering
+  const renderColumnHeader = (colKey: string, label: string, customFilterKey?: string) => {
+    const fKey = customFilterKey || colKey;
+    const isFiltered = !!filters[fKey];
+    const isSorted = sortBy === colKey;
+    const isOpen = activeHeaderDropdown === colKey;
+    const options = getColumnOptions(colKey);
+    const filteredOptions = columnSearchQuery
+      ? options.filter(o => o.label.toLowerCase().includes(columnSearchQuery.toLowerCase()))
+      : options;
+
+    const alignRight = ['datacenter', 'primary_ip_address', 'annotation', 'dns_name', 'efi_secure_boot'].includes(colKey);
+
+    return (
+      <th key={colKey} className={`p-2 relative select-none ${isOpen ? 'z-50' : 'z-20'}`}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isOpen) {
+              setActiveHeaderDropdown(null);
+              setColumnSearchQuery('');
+            } else {
+              setActiveHeaderDropdown(colKey);
+              setColumnSearchQuery('');
+            }
+          }}
+          className={`w-full group flex items-center justify-between gap-1.5 py-1.5 px-2 rounded-lg cursor-pointer transition-all border text-left font-mono ${
+            isOpen
+              ? 'bg-blue-600/30 border-blue-400 text-white shadow-md shadow-blue-500/20'
+              : isFiltered
+              ? 'bg-blue-950/70 border-blue-500/50 text-blue-200'
+              : isSorted
+              ? 'bg-white/10 border-white/20 text-white'
+              : 'border-transparent hover:bg-white/[0.07] hover:border-white/15 text-slate-300 hover:text-white'
+          }`}
+          title={`Click to sort or filter by ${label}`}
+        >
+          <span className="font-semibold text-[11px] truncate uppercase tracking-wider">{label}</span>
+          <div className="flex items-center gap-1 shrink-0">
+            {isSorted && (
+              <span className="text-cyan-400">
+                {sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+              </span>
+            )}
+            {isFiltered && (
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold shadow-xs">
+                <Check className="w-2.5 h-2.5" />
+              </span>
+            )}
+            <ChevronDown
+              className={`w-3 h-3 transition-transform duration-200 ${
+                isOpen ? 'rotate-180 text-blue-400' : 'text-slate-500 group-hover:text-slate-300'
+              }`}
+            />
+          </div>
+        </button>
+
+        {/* Dropdown Popup for Sorting & Filtering directly under this header */}
+        {isOpen && (
+          <div
+            ref={dropdownRef}
+            onClick={(e) => e.stopPropagation()}
+            className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-1.5 min-w-[250px] max-w-[310px] bg-[#0D1527] border border-slate-700/80 rounded-xl shadow-2xl p-3 z-50 text-xs font-sans space-y-2.5 animate-in fade-in zoom-in-95 duration-150`}
+            style={{ colorScheme: 'dark' }}
+          >
+            {/* Header info */}
+            <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-slate-200 font-bold truncate">
+                {label} Controls
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveHeaderDropdown(null);
+                  setColumnSearchQuery('');
+                }}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                title="Close"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Sort Section */}
+            <div className="space-y-1">
+              <div className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Sort Order</div>
+              <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSortBy(colKey);
+                    setSortOrder('asc');
+                    setPage(1);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+                    isSorted && sortOrder === 'asc'
+                      ? 'bg-blue-600/35 border-blue-400 text-white font-bold shadow-xs'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <ArrowUp className="w-3 h-3 text-cyan-400" />
+                  <span>Asc (A→Z)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSortBy(colKey);
+                    setSortOrder('desc');
+                    setPage(1);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+                    isSorted && sortOrder === 'desc'
+                      ? 'bg-blue-600/35 border-blue-400 text-white font-bold shadow-xs'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <ArrowDown className="w-3 h-3 text-cyan-400" />
+                  <span>Desc (Z→A)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-white/10" />
+
+            {/* Filter Section */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">
+                  Filter by {label}
+                </span>
+                {isFiltered && (
+                  <button
+                    type="button"
+                    onClick={() => removeFilter(fKey)}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 font-mono underline cursor-pointer"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+
+              {/* Search input for options list */}
+              {options.length > 5 && (
+                <div className="relative">
+                  <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-2" />
+                  <input
+                    type="text"
+                    value={columnSearchQuery}
+                    onChange={(e) => setColumnSearchQuery(e.target.value)}
+                    placeholder={`Search ${label}...`}
+                    className="w-full pl-7 pr-2.5 py-1 text-[11px] rounded-lg bg-[#0B1223] border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {/* Options list */}
+              <div className="max-h-48 overflow-y-auto space-y-0.5 pr-1 font-mono text-[11px]">
+                {/* "(Show All)" option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeFilter(fKey);
+                    setActiveHeaderDropdown(null);
+                  }}
+                  className={`w-full flex items-center justify-between p-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    !isFiltered
+                      ? 'bg-blue-600/20 text-white font-semibold'
+                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {!isFiltered ? <Check className="w-3 h-3 text-blue-400" /> : <span className="w-3" />}
+                    <span>(Show All)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500">{total}</span>
+                </button>
+
+                {filteredOptions.length === 0 ? (
+                  <div className="p-2 text-center text-[10px] text-slate-500">No matching options</div>
+                ) : (
+                  filteredOptions.map((opt) => {
+                    const isSelected = filters[fKey] === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            removeFilter(fKey);
+                          } else {
+                            handleFilterChange(fKey, opt.value);
+                          }
+                          setActiveHeaderDropdown(null);
+                        }}
+                        className={`w-full flex items-center justify-between p-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600/30 text-white font-semibold border border-blue-500/40'
+                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 truncate pr-2">
+                          {isSelected ? (
+                            <Check className="w-3 h-3 text-cyan-400 shrink-0" />
+                          ) : (
+                            <span className="w-3 shrink-0" />
+                          )}
+                          <span className="truncate">{opt.label}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 shrink-0 font-normal">({opt.count})</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  };
+
   return (
     <div className="space-y-4 max-w-full">
       {/* Table Action Header */}
-      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-xl soc-glass-panel relative ${showFilterDropdown || showColumnPicker ? 'z-50' : 'z-20'}`}>
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-xl soc-glass-panel relative ${showColumnPicker ? 'z-50' : 'z-20'}`}>
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
             <Server className="w-5 h-5" />
@@ -296,147 +609,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             />
           </div>
 
-          {/* Filter Dropdown Button */}
-          <div className={`relative ${showFilterDropdown ? 'z-50' : 'z-30'}`}>
+          {/* Reset Filters Shortcut (if any column filter is active) */}
+          {activeFilterKeys.length > 0 && (
             <button
-              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className={`relative z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer bg-[#14161B] hover:bg-[#1C1F26] text-white shadow-xl ${
-                showFilterDropdown
-                  ? 'border-blue-400 ring-2 ring-blue-500/50 bg-[#1C1F26]'
-                  : activeFilterKeys.length > 0
-                  ? 'border-blue-400/60 ring-1 ring-blue-500/40'
-                  : 'border-white/20'
-              }`}
+              onClick={clearAllFilters}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-mono text-rose-300 hover:bg-rose-500/25 transition-all cursor-pointer shadow-sm"
+              title="Clear all active column filters"
             >
-              <Filter className="w-3.5 h-3.5 text-white" />
-              <span className="text-white font-medium">Filters ({activeFilterKeys.length})</span>
-              <ChevronDown className={`w-3 h-3 ml-0.5 text-white transition-transform duration-200 ${showFilterDropdown ? 'rotate-180' : ''}`} />
+              <X className="w-3.5 h-3.5 text-rose-400" />
+              <span>Reset Filters ({activeFilterKeys.length})</span>
             </button>
-
-            {/* Filter Flyout */}
-            {showFilterDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-[#111827] border border-white/20 rounded-xl shadow-2xl p-4 z-50 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <span className="text-xs font-mono font-semibold uppercase text-slate-300">
-                    Infrastructure Filters
-                  </span>
-                  <button
-                    onClick={() => setShowFilterDropdown(false)}
-                    className="text-slate-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1 text-xs">
-                  {/* BU Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Business Unit</label>
-                    <select
-                      value={filters.business_unit || ''}
-                      onChange={e => handleFilterChange('business_unit', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All Business Units</option>
-                      {filterOptions.businessUnits.map(b => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Environment Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Environment</label>
-                    <select
-                      value={filters.environment || ''}
-                      onChange={e => handleFilterChange('environment', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All Environments</option>
-                      {filterOptions.environments.map(e => (
-                        <option key={e} value={e}>{e}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Manager Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Manager</label>
-                    <select
-                      value={filters.manager || ''}
-                      onChange={e => handleFilterChange('manager', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All Managers</option>
-                      {filterOptions.managers.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Secure Boot Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">EFI Secure Boot</label>
-                    <select
-                      value={filters.secure_boot || ''}
-                      onChange={e => handleFilterChange('secure_boot', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All States</option>
-                      <option value="TRUE">Enabled (Compliant)</option>
-                      <option value="FALSE">Disabled (Attention Required)</option>
-                      <option value="UNKNOWN">Unknown / Missing</option>
-                    </select>
-                  </div>
-
-                  {/* Datacenter Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Datacenter</label>
-                    <select
-                      value={filters.datacenter || ''}
-                      onChange={e => handleFilterChange('datacenter', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All Datacenters</option>
-                      {filterOptions.datacenters.map(d => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Support Team Filter */}
-                  <div>
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Support Team</label>
-                    <select
-                      value={filters.support_team || ''}
-                      onChange={e => handleFilterChange('support_team', e.target.value)}
-                      className="w-full mt-1 p-1.5 rounded bg-white/5 border border-white/10 text-slate-200"
-                    >
-                      <option value="">All Teams</option>
-                      {filterOptions.supportTeams.map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-white/10 flex justify-between">
-                  <button
-                    onClick={clearAllFilters}
-                    className="text-[11px] text-rose-400 hover:text-rose-300 font-mono"
-                  >
-                    Clear All
-                  </button>
-                  <button
-                    onClick={() => setShowFilterDropdown(false)}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-xs font-medium"
-                  >
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Column Picker */}
           <div className="relative">
@@ -456,17 +639,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </button>
                 </div>
                 <div className="space-y-1.5 max-h-60 overflow-y-auto text-xs">
-                  {Object.entries(visibleColumns).map(([col, isVisible]) => (
+                  {Object.entries(COLUMN_LABELS).map(([col, label]) => (
                     <label key={col} className="flex items-center gap-2 text-slate-300 hover:text-white cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={isVisible}
+                        checked={!!visibleColumns[col]}
                         onChange={e =>
                           setVisibleColumns(prev => ({ ...prev, [col]: e.target.checked }))
                         }
                         className="rounded border-white/20 bg-white/5"
                       />
-                      <span className="capitalize">{col.replace(/_/g, ' ')}</span>
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
@@ -561,10 +744,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       )}
 
       {/* Main Inventory Table (Section 7.1) */}
-      <div className="relative z-10 rounded-xl soc-glass-panel overflow-hidden border border-white/10">
-        <div className="overflow-x-auto">
+      <div className="relative z-10 rounded-xl soc-glass-panel border border-white/10">
+        <div className="overflow-x-auto min-h-[440px] pb-24">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
+            <thead className="relative z-30">
               <tr className="border-b border-white/10 bg-white/[0.03] text-[11px] font-mono text-slate-400 uppercase tracking-wider">
                 <th className="p-3 w-10 text-center">
                   <input
@@ -574,35 +757,35 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className="rounded border-white/20 bg-white/5 cursor-pointer"
                   />
                 </th>
-                {visibleColumns.host && <th className="p-3 font-semibold">Host</th>}
-                {visibleColumns.vm && <th className="p-3 font-semibold">VM Identifier</th>}
-                {visibleColumns.business_unit && <th className="p-3 font-semibold">Business Unit</th>}
-                {visibleColumns.sub_business_unit && <th className="p-3 font-semibold">Sub-BU</th>}
-                {visibleColumns.manager && <th className="p-3 font-semibold">Manager</th>}
-                {visibleColumns.email && <th className="p-3 font-semibold">Email</th>}
-                {visibleColumns.support_team && <th className="p-3 font-semibold">Support Team</th>}
-                {visibleColumns.environment && <th className="p-3 font-semibold">Env</th>}
-                {visibleColumns.customer && <th className="p-3 font-semibold">Customer</th>}
-                {visibleColumns.dns_name && <th className="p-3 font-semibold">DNS Name</th>}
-                {visibleColumns.primary_ip_address && <th className="p-3 font-semibold">Primary IP</th>}
-                {visibleColumns.datacenter && <th className="p-3 font-semibold">Datacenter</th>}
-                {visibleColumns.power_state && <th className="p-3 font-semibold">Power State</th>}
-                {visibleColumns.efi_secure_boot && <th className="p-3 font-semibold">Secure Boot</th>}
-                {visibleColumns.product && <th className="p-3 font-semibold">Product</th>}
-                {visibleColumns.function && <th className="p-3 font-semibold">Function</th>}
-                {visibleColumns.annotation && <th className="p-3 font-semibold">Annotation</th>}
+                {visibleColumns.vm && renderColumnHeader('vm', 'VM Identifier')}
+                {visibleColumns.environment && renderColumnHeader('environment', 'Env')}
+                {visibleColumns.business_unit && renderColumnHeader('business_unit', 'Business Unit')}
+                {visibleColumns.sub_business_unit && renderColumnHeader('sub_business_unit', 'Sub-BU')}
+                {visibleColumns.customer && renderColumnHeader('customer', 'Customer')}
+                {visibleColumns.product && renderColumnHeader('product', 'Product')}
+                {visibleColumns.function && renderColumnHeader('function', 'Function')}
+                {visibleColumns.support_team && renderColumnHeader('support_team', 'Support Team')}
+                {visibleColumns.manager && renderColumnHeader('manager', 'Manager')}
+                {visibleColumns.email && renderColumnHeader('email', 'Email')}
+                {visibleColumns.primary_ip_address && renderColumnHeader('primary_ip_address', 'Primary IP')}
+                {visibleColumns.datacenter && renderColumnHeader('datacenter', 'Datacenter')}
+                {visibleColumns.host && renderColumnHeader('host', 'Host')}
+                {visibleColumns.power_state && renderColumnHeader('power_state', 'Power State')}
+                {visibleColumns.efi_secure_boot && renderColumnHeader('efi_secure_boot', 'Secure Boot', 'secure_boot')}
+                {visibleColumns.dns_name && renderColumnHeader('dns_name', 'DNS Name')}
+                {visibleColumns.annotation && renderColumnHeader('annotation', 'Annotation')}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
                 <tr>
-                  <td colSpan={15} className="p-8 text-center text-xs font-mono text-slate-400">
+                  <td colSpan={18} className="p-8 text-center text-xs font-mono text-slate-400">
                     Loading server infrastructure inventory...
                   </td>
                 </tr>
               ) : servers.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="p-8 text-center text-slate-400">
+                  <td colSpan={18} className="p-8 text-center text-slate-400">
                     No servers match the selected criteria.
                   </td>
                 </tr>
@@ -626,80 +809,100 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         />
                       </td>
 
-                      {visibleColumns.host && (
-                        <td className="p-3 font-mono font-medium text-white truncate max-w-[180px]">
-                          {server.host}
-                        </td>
-                      )}
-
+                      {/* 1. VM Identifier */}
                       {visibleColumns.vm && (
-                        <td className="p-3 font-mono text-slate-300">
-                          {server.vm}
+                        <td className="p-3 font-mono font-medium text-white">
+                          {server.vm || server.host}
                         </td>
                       )}
 
+                      {/* 2. Env */}
+                      {visibleColumns.environment && (
+                        <td className="p-3">
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 font-mono text-[10px]">
+                            {server.environment || '—'}
+                          </span>
+                        </td>
+                      )}
+
+                      {/* 3. Business Unit */}
                       {visibleColumns.business_unit && (
                         <td className="p-3 text-purple-300 font-medium">
                           {server.business_unit || <span className="text-slate-600">—</span>}
                         </td>
                       )}
 
+                      {/* 4. Sub-BU */}
                       {visibleColumns.sub_business_unit && (
                         <td className="p-3 text-slate-300">
                           {server.sub_business_unit || <span className="text-slate-600">—</span>}
                         </td>
                       )}
 
-                      {visibleColumns.manager && (
-                        <td className="p-3 text-slate-200">
-                          {server.manager || <span className="text-amber-400 font-mono text-[11px]">Unassigned</span>}
-                        </td>
-                      )}
-
-                      {visibleColumns.email && (
-                        <td className="p-3 text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
-                          {server.email || <span className="text-amber-400">Missing</span>}
-                        </td>
-                      )}
-
-                      {visibleColumns.support_team && (
-                        <td className="p-3 text-slate-300 font-mono">
-                          {server.support_team || '—'}
-                        </td>
-                      )}
-
-                      {visibleColumns.environment && (
-                        <td className="p-3">
-                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 font-mono text-[10px]">
-                            {server.environment}
-                          </span>
-                        </td>
-                      )}
-
+                      {/* 5. Customer */}
                       {visibleColumns.customer && (
                         <td className="p-3 text-slate-300">
                           {server.customer || '—'}
                         </td>
                       )}
 
-                      {visibleColumns.dns_name && (
-                        <td className="p-3 font-mono text-slate-400 text-[11px] truncate max-w-[160px]">
-                          {server.dns_name || '—'}
+                      {/* 6. Product */}
+                      {visibleColumns.product && (
+                        <td className="p-3 text-blue-300 font-medium">
+                          {server.product || <span className="text-slate-600">—</span>}
                         </td>
                       )}
 
+                      {/* 7. Function */}
+                      {visibleColumns.function && (
+                        <td className="p-3 text-slate-300">
+                          {server.function || '—'}
+                        </td>
+                      )}
+
+                      {/* 8. Support Team */}
+                      {visibleColumns.support_team && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">
+                          {server.support_team || '—'}
+                        </td>
+                      )}
+
+                      {/* 9. Manager */}
+                      {visibleColumns.manager && (
+                        <td className="p-3 text-slate-200">
+                          {server.manager || <span className="text-amber-400 font-mono text-[11px]">Unassigned</span>}
+                        </td>
+                      )}
+
+                      {/* 10. Email */}
+                      {visibleColumns.email && (
+                        <td className="p-3 text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
+                          {server.email || <span className="text-amber-400">Missing</span>}
+                        </td>
+                      )}
+
+                      {/* 11. Primary IP */}
                       {visibleColumns.primary_ip_address && (
                         <td className="p-3 font-mono text-cyan-300 font-medium">
                           {server.primary_ip_address || '—'}
                         </td>
                       )}
 
+                      {/* 12. Datacenter */}
                       {visibleColumns.datacenter && (
                         <td className="p-3 text-slate-400 font-mono text-[11px]">
                           {server.datacenter || '—'}
                         </td>
                       )}
 
+                      {/* Optional: Host */}
+                      {visibleColumns.host && (
+                        <td className="p-3 font-mono text-slate-400 text-[11px] truncate max-w-[160px]">
+                          {server.host}
+                        </td>
+                      )}
+
+                      {/* Optional: Power State */}
                       {visibleColumns.power_state && (
                         <td className="p-3">
                           <span
@@ -714,6 +917,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         </td>
                       )}
 
+                      {/* Optional: EFI Secure Boot */}
                       {visibleColumns.efi_secure_boot && (
                         <td className="p-3">
                           {server.efi_secure_boot === true ? (
@@ -732,14 +936,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         </td>
                       )}
 
-                      {visibleColumns.product && (
-                        <td className="p-3 text-slate-300">{server.product}</td>
+                      {/* Optional: DNS Name */}
+                      {visibleColumns.dns_name && (
+                        <td className="p-3 font-mono text-slate-400 text-[11px] truncate max-w-[160px]">
+                          {server.dns_name || '—'}
+                        </td>
                       )}
 
-                      {visibleColumns.function && (
-                        <td className="p-3 text-slate-300">{server.function}</td>
-                      )}
-
+                      {/* Optional: Annotation */}
                       {visibleColumns.annotation && (
                         <td className="p-3 text-amber-300 text-[11px] truncate max-w-[140px]">{server.annotation}</td>
                       )}
@@ -761,12 +965,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="bg-white/5 border border-white/10 rounded px-2 py-0.5 text-slate-300"
+              className="bg-[#0B1223] border border-slate-700/80 rounded px-2 py-0.5 text-white font-mono text-xs cursor-pointer focus:outline-none focus:border-blue-400"
+              style={{ colorScheme: 'dark' }}
             >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
+              <option value={10} className="bg-[#0B1223] text-white">10</option>
+              <option value={25} className="bg-[#0B1223] text-white">25</option>
+              <option value={50} className="bg-[#0B1223] text-white">50</option>
+              <option value={100} className="bg-[#0B1223] text-white">100</option>
             </select>
           </div>
 
