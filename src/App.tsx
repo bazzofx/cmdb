@@ -205,6 +205,7 @@ export function App() {
           {currentView === 'reports' && (
             <ReportsView
               onSelectServer={id => setSelectedServerId(id)}
+              onFilterInventory={filters => handleNavigate('inventory', filters)}
             />
           )}
 
