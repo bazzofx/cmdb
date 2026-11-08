@@ -32,6 +32,16 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
     }, 50);
   }, [isOpen]);
 
+  // Close on Escape no matter which element currently has focus.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -77,7 +87,10 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-2xl bg-[var(--surface-2)] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}

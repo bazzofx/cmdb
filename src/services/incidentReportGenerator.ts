@@ -456,42 +456,108 @@ export function generatePdfReport(data: ReportData): jsPDF {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  let y = 35;
+  const marginX = 40;
+  const contentWidth = pageWidth - marginX * 2;
 
   // ---------------------------------------------------------
-  // PAGE 1: EXECUTIVE BANNER, METRICS & VISUAL PIE/DONUT CHARTS
+  // PAGE 1: CHARTS ONLY — each image is placed at its native aspect ratio.
   // ---------------------------------------------------------
-  // Header Banner
   doc.setFillColor(13, 20, 36);
-  doc.rect(0, 0, pageWidth, 75, 'F');
+  doc.rect(0, 0, pageWidth, 50, 'F');
 
-  doc.setFontSize(16);
+  doc.setFontSize(13);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('SOC CMDB // INCIDENT TRIAGE & REMEDIATION REPORT', 40, 32);
+  doc.text('INCIDENT ANALYTICS // VISUAL REMEDIATION OVERVIEW', marginX, 21);
 
-  doc.setFontSize(9.5);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(147, 197, 253);
-  doc.text(`Incident Ref: ${incident.incident_reference}  |  Generated: ${new Date().toLocaleDateString()}  |  Classification: RESTRICTED`, 40, 52);
+  doc.text(
+    `${incident.incident_reference}  |  ${incident.incident_title}  |  Generated: ${new Date().toLocaleDateString()}  |  RESTRICTED`,
+    marginX,
+    36,
+    { maxWidth: contentWidth },
+  );
 
-  y = 90;
+  let y = 60;
+
+  // Pie and donut are generated at 500x250 (2:1) and displayed at 240x120.
+  const pieWidth = 240;
+  const pieHeight = 120;
+  const pieGap = 12;
+  const pieStartX = (pageWidth - (pieWidth * 2 + pieGap)) / 2;
+  const statusPieDataUrl = generateTriageStatusPieChart(data, 500, 250);
+  const remediationDonutDataUrl = generateRemediationDonutChart(data, 500, 250);
+
+  doc.addImage(statusPieDataUrl, 'PNG', pieStartX, y, pieWidth, pieHeight);
+  doc.addImage(remediationDonutDataUrl, 'PNG', pieStartX + pieWidth + pieGap, y, pieWidth, pieHeight);
+
+  y += pieHeight + 8;
+
+  // All bar charts are generated at 600x240 (2.5:1) and displayed at 500x200.
+  const barWidth = 500;
+  const barHeight = 200;
+  const barX = (pageWidth - barWidth) / 2;
+  const barCharts = [
+    generateBusinessUnitBarChart(data, 600, 240),
+    generateProductBarChart(data, 600, 240),
+    generateManagerBarChart(data, 600, 240),
+  ];
+
+  barCharts.forEach(chart => {
+    doc.addImage(chart, 'PNG', barX, y, barWidth, barHeight);
+    y += barHeight + 8;
+  });
+
+  // ---------------------------------------------------------
+  // PAGE 2: INCIDENT CONTEXT, METRICS, SUMMARY & BREAKDOWNS
+  // ---------------------------------------------------------
+  doc.addPage();
+  y = 28;
+
+  doc.setFillColor(13, 20, 36);
+  doc.rect(0, 0, pageWidth, 58, 'F');
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('SOC CMDB // INCIDENT TRIAGE & REMEDIATION REPORT', marginX, 22);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(147, 197, 253);
+  doc.text(
+    `Incident Ref: ${incident.incident_reference}  |  Generated: ${new Date().toLocaleDateString()}  |  Classification: RESTRICTED`,
+    marginX,
+    38,
+  );
+
+  y = 74;
 
   // Incident Overview Box
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(40, y, pageWidth - 80, 65, 4, 4, 'FD');
+  doc.roundedRect(marginX, y, contentWidth, 65, 4, 4, 'FD');
 
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Incident: ${incident.incident_title}`, 50, y + 18);
+  doc.text(`Incident: ${incident.incident_title}`, marginX + 10, y + 18, { maxWidth: contentWidth - 20 });
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`Severity: ${incident.severity}     |     Status: ${incident.status}     |     Lead: ${incident.assigned_engineer || 'SecOps Lead'}`, 50, y + 34);
-  doc.text(`IoC / Vulnerability: ${incident.ioc_or_vulnerability || 'N/A'}     |     Source: ${incident.detection_source || 'SIEM Alert'}`, 50, y + 50);
+  doc.text(
+    `Severity: ${incident.severity}     |     Status: ${incident.status}     |     Lead: ${incident.assigned_engineer || 'SecOps Lead'}`,
+    marginX + 10,
+    y + 34,
+  );
+  doc.text(
+    `IoC / Vulnerability: ${incident.ioc_or_vulnerability || 'N/A'}     |     Source: ${incident.detection_source || 'SIEM Alert'}`,
+    marginX + 10,
+    y + 50,
+  );
 
   y += 78;
 
@@ -503,9 +569,9 @@ export function generatePdfReport(data: ReportData): jsPDF {
     { title: 'Documented Notes', val: `${metrics.hasNotesCount} / ${metrics.totalServers}`, sub: `${metrics.hasNotesPct}% Coverage`, col: [139, 92, 246] },
   ];
 
-  const cardWidth = (pageWidth - 80 - 30) / 4;
+  const cardWidth = (contentWidth - 30) / 4;
   metricCards.forEach((c, idx) => {
-    const x = 40 + idx * (cardWidth + 10);
+    const x = marginX + idx * (cardWidth + 10);
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(x, y, cardWidth, 48, 4, 4, 'FD');
@@ -528,96 +594,61 @@ export function generatePdfReport(data: ReportData): jsPDF {
 
   y += 62;
 
-  // SECTION 1: VISUAL CHARTS (PIE & DONUT)
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text('1. Operational Remediation Analytics (Pie & Donut Charts)', 40, y);
-
-  y += 12;
-
-  // Generate charts for PDF
-  const statusPieDataUrl = generateTriageStatusPieChart(data, 500, 250);
-  const remediationDonutDataUrl = generateRemediationDonutChart(data, 500, 250);
-
-  // Embed Chart 1 and Chart 2 side-by-side on Page 1
-  const chartWidth = (pageWidth - 80 - 15) / 2; // ~250 pt each
-  const chartHeight = 150;
-
-  doc.addImage(statusPieDataUrl, 'PNG', 40, y, chartWidth, chartHeight);
-  doc.addImage(remediationDonutDataUrl, 'PNG', 40 + chartWidth + 15, y, chartWidth, chartHeight);
-
-  y += chartHeight + 20;
-
-  // Page 1 Footer Summary Note
+  // Executive summary
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(40, y, pageWidth - 80, 40, 3, 3, 'F');
+  doc.roundedRect(marginX, y, contentWidth, 42, 3, 3, 'F');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 41, 59);
-  doc.text('EXECUTIVE REMEDIATION SUMMARY:', 48, y + 15);
+  doc.text('EXECUTIVE REMEDIATION SUMMARY:', marginX + 8, y + 14);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
   doc.text(
     `${metrics.patchedCount} of ${metrics.totalServers} impacted hosts (${metrics.patchedPct}%) have verified patches applied. ${metrics.communicatedCount} stakeholders notified. Isolation protocols engaged for ${metrics.isolatedCount} host(s).`,
-    48,
-    y + 28
+    marginX + 8,
+    y + 27,
+    { maxWidth: contentWidth - 16 },
   );
 
-  // ---------------------------------------------------------
-  // PAGE 2: BUSINESS UNIT & PRODUCT VISUAL BAR CHARTS
-  // ---------------------------------------------------------
-  doc.addPage();
-  y = 40;
+  y += 56;
 
-  doc.setFontSize(13);
+  // Business Unit Breakdown Matrix
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('2. Business Unit & Workload Blast Radius Analytics (Bar Charts)', 40, y);
+  doc.text('Business Unit Breakdown Matrix', marginX, y);
+  y += 12;
 
-  y += 15;
+  const drawBusinessUnitHeader = () => {
+    doc.setFillColor(30, 41, 59);
+    doc.rect(marginX, y, contentWidth, 16, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('BUSINESS UNIT', 46, y + 11);
+    doc.text('TOTAL SERVERS', 220, y + 11);
+    doc.text('PATCHED', 310, y + 11);
+    doc.text('NOTIFIED', 390, y + 11);
+    doc.text('PROGRESS %', 470, y + 11);
+    y += 16;
+  };
 
-  // Chart 3: Business Unit Impact Horizontal Bar Chart
-  const buBarDataUrl = generateBusinessUnitBarChart(data, 600, 240);
-  doc.addImage(buBarDataUrl, 'PNG', 40, y, pageWidth - 80, 160);
-
-  y += 175;
-
-  // Chart 4: Product Workloads Horizontal Bar Chart
-  const productBarDataUrl = generateProductBarChart(data, 600, 220);
-  doc.addImage(productBarDataUrl, 'PNG', 40, y, pageWidth - 80, 150);
-
-  y += 165;
-
-  // Chart 5: Manager Accountability Bar Chart
-  const managerBarDataUrl = generateManagerBarChart(data, 600, 200);
-  doc.addImage(managerBarDataUrl, 'PNG', 40, y, pageWidth - 80, 140);
-
-  y += 155;
-
-  // Business Unit Summary Table on Page 2
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text('Business Unit Breakdown Matrix', 40, y);
-  y += 10;
-
-  // Table header
-  doc.setFillColor(30, 41, 59);
-  doc.rect(40, y, pageWidth - 80, 16, 'F');
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('BUSINESS UNIT', 46, y + 11);
-  doc.text('TOTAL SERVERS', 220, y + 11);
-  doc.text('PATCHED', 310, y + 11);
-  doc.text('NOTIFIED', 390, y + 11);
-  doc.text('PROGRESS %', 470, y + 11);
-  y += 16;
+  drawBusinessUnitHeader();
 
   buBreakdown.forEach((bu, i) => {
+    if (y > 730) {
+      doc.addPage();
+      y = 40;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Business Unit Breakdown Matrix (Continued)', marginX, y);
+      y += 14;
+      drawBusinessUnitHeader();
+    }
+
     doc.setFillColor(i % 2 === 0 ? 255 : 248, i % 2 === 0 ? 255 : 250, i % 2 === 0 ? 255 : 252);
-    doc.rect(40, y, pageWidth - 80, 15, 'F');
+    doc.rect(marginX, y, contentWidth, 15, 'F');
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
@@ -632,27 +663,30 @@ export function generatePdfReport(data: ReportData): jsPDF {
     y += 15;
   });
 
-  // ---------------------------------------------------------
-  // PAGE 3+: DETAILED HOST TRIAGE & REMEDIATION INVENTORY
-  // ---------------------------------------------------------
-  doc.addPage();
-  y = 40;
+  // Detailed Host Triage table. Start it on this page when it fits, otherwise
+  // continue on the next page.
+  if (y > 620) {
+    doc.addPage();
+    y = 40;
+  } else {
+    y += 16;
+  }
 
-  doc.setFontSize(13);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('3. Detailed Host Triage & Remediation Inventory', 40, y);
+  doc.text('Detailed Host Triage & Remediation Inventory', marginX, y);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text(`Comprehensive audit list of all ${affectedList.length} infrastructure systems in scope`, 40, y + 14);
+  doc.text(`Comprehensive audit list of all ${affectedList.length} infrastructure systems in scope`, marginX, y + 14);
 
   y += 24;
 
   const drawTableHeader = () => {
     doc.setFillColor(30, 41, 59);
-    doc.rect(40, y, pageWidth - 80, 18, 'F');
+    doc.rect(marginX, y, contentWidth, 18, 'F');
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
@@ -673,7 +707,7 @@ export function generatePdfReport(data: ReportData): jsPDF {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text('3. Detailed Host Triage Inventory (Continued)', 40, y);
+      doc.text('Detailed Host Triage Inventory (Continued)', marginX, y);
       y += 16;
       drawTableHeader();
     }
@@ -682,7 +716,7 @@ export function generatePdfReport(data: ReportData): jsPDF {
     const isPatched = d.status === 'Patched' || d.status === 'Patch';
 
     doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 252);
-    doc.rect(40, y, pageWidth - 80, 22, 'F');
+    doc.rect(marginX, y, contentWidth, 22, 'F');
 
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
@@ -730,7 +764,7 @@ export function generatePdfReport(data: ReportData): jsPDF {
     doc.setTextColor(148, 163, 184);
     doc.text(
       `SOC CMDB — Security Operations Console · Confidential Incident Report (${incident.incident_reference}) - Page ${i} of ${totalPages}`,
-      40,
+      marginX,
       822
     );
   }

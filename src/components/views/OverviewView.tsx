@@ -3,7 +3,6 @@ import {
   Server,
   Building2,
   ShieldCheck,
-  TriangleAlert,
   Activity,
   ArrowUpRight,
   Package,
@@ -309,10 +308,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         <TopKpiCard
           label="Total Servers"
           mainValue={String(totalServers)}
-          trend="↑ 0% vs previous period"
           icon={<Server className="w-4 h-4 text-blue-400" />}
           iconBg="bg-blue-500/20"
-          waveColor="var(--accent)"
           onClick={() => onNavigate('inventory')}
         />
 
@@ -322,10 +319,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           mainValue={`${poweredOnCount} / ${totalServers}`}
           badgePct={`${poweredOnPct}%`}
           badgeColor="text-emerald-400"
-          trend="↑ 0% vs previous period"
           icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
           iconBg="bg-emerald-500/20"
-          waveColor="var(--color-emerald-400)"
           onClick={() => onNavigate('inventory', { power_state: 'poweredOn' })}
         />
 
@@ -335,10 +330,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           mainValue={String(totalProductCount)}
           badgePct="Products"
           badgeColor="text-cyan-400"
-          trend="↑ 0% vs previous period"
           icon={<Package className="w-4 h-4 text-cyan-400" />}
           iconBg="bg-cyan-500/20"
-          waveColor="var(--accent-2)"
           onClick={() => onNavigate('products')}
         />
 
@@ -348,10 +341,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           mainValue={`${secureBootEnabled} / ${totalServers}`}
           badgePct={`${secureBootPct}%`}
           badgeColor="text-purple-400"
-          trend="↑ 0% vs previous period"
           icon={<Shield className="w-4 h-4 text-purple-400" />}
           iconBg="bg-purple-500/20"
-          waveColor="var(--accent-3)"
           onClick={() => onNavigate('inventory', { secure_boot: 'TRUE' })}
         />
 
@@ -361,10 +352,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           mainValue={`${fullyAssigned} / ${totalServers}`}
           badgePct={`${ownershipPct}%`}
           badgeColor="text-teal-400"
-          trend="↑ 0% vs previous period"
           icon={<ShieldCheck className="w-4 h-4 text-teal-400" />}
           iconBg="bg-teal-500/20"
-          waveColor="var(--accent-2)"
           onClick={() => onNavigate('ownership-explorer')}
         />
       </div>
@@ -951,82 +940,46 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   );
 };
 
-// Reusable Top KPI Card with sleek wave sparkline (matching reference image)
+// Reusable Top KPI Card (compact, current-state only)
 const TopKpiCard: React.FC<{
   label: string;
   mainValue: string;
   badgePct?: string;
   badgeColor?: string;
-  trend: string;
   icon: React.ReactNode;
   iconBg: string;
-  waveColor: string;
   onClick: () => void;
 }> = ({
   label,
   mainValue,
   badgePct,
   badgeColor = 'text-emerald-400',
-  trend,
   icon,
   iconBg,
-  waveColor,
   onClick,
 }) => {
   return (
     <div
       onClick={onClick}
-      className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 hover:border-slate-700/80 hover:bg-[var(--surface-2)]/90 transition-all duration-300 shadow-xl backdrop-blur-md cursor-pointer relative overflow-hidden group select-none flex flex-col justify-between h-[155px]"
+      className="p-4 rounded-xl bg-[var(--surface-1)]/80 border border-slate-800/80 hover:border-slate-700/80 hover:bg-[var(--surface-2)]/90 transition-all duration-300 shadow-xl backdrop-blur-md cursor-pointer relative overflow-hidden group select-none"
     >
-      <div>
-        {/* Top row: Icon on left, Label on right */}
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl ${iconBg} flex items-center justify-center shrink-0`}>
-            {icon}
-          </div>
-          <span className="text-xs font-semibold text-slate-300 tracking-wide truncate">
-            {label}
-          </span>
+      <div className="flex items-center gap-2.5">
+        <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+          {icon}
         </div>
-
-        {/* Value row with optional badge */}
-        <div className="flex items-baseline gap-2 mt-2">
-          <span className="text-2xl font-black font-mono text-white tracking-tight">
-            {mainValue}
-          </span>
-          {badgePct && (
-            <span className={`text-xs font-mono font-bold ${badgeColor}`}>
-              {badgePct}
-            </span>
-          )}
-        </div>
-
-        {/* Trend subtitle */}
-        <div className="text-[10px] font-mono text-emerald-400/90 mt-0.5">
-          {trend}
-        </div>
+        <span className="text-xs font-semibold text-slate-300 tracking-wide truncate">
+          {label}
+        </span>
       </div>
-
-      {/* Smooth Sparkline Wave at Bottom (matching reference image) */}
-      <div className="w-full h-8 -mx-5 -mb-5 relative overflow-hidden pointer-events-none mt-2">
-        <svg viewBox="0 0 200 40" className="w-full h-full" preserveAspectRatio="none">
-          <path
-            d="M0 30 Q 30 38 60 25 T 120 20 T 160 28 T 200 15"
-            fill="none"
-            stroke={waveColor}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-          {/* Subtle glow layer */}
-          <path
-            d="M0 30 Q 30 38 60 25 T 120 20 T 160 28 T 200 15"
-            fill="none"
-            stroke={waveColor}
-            strokeWidth="5"
-            strokeOpacity="0.25"
-            strokeLinecap="round"
-          />
-        </svg>
+      <div className="flex items-baseline gap-2 mt-2">
+        <span className="text-xl font-black font-mono text-white tracking-tight">
+          {mainValue}
+        </span>
+        {badgePct && (
+          <span className={`text-xs font-mono font-bold ${badgeColor}`}>
+            {badgePct}
+          </span>
+        )}
       </div>
     </div>
   );

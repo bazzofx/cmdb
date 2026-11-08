@@ -244,42 +244,76 @@
 
 [data-theme="coffee"] {
   color-scheme: dark;
-  --app-bg: #1a120c;
-  --app-bg-solid: #1a120c;
-  --surface-1: #241810;
-  --surface-2: #2e2017;
-  --surface-3: #3a291d;
-  --text-primary: #f3e8d8;
-  --text-secondary: #c4ae94;
-  --accent: #8a5a3b;
-  --accent-2: #e8c77a;
-  --accent-3: #d9b08c;
-  --accent-4: #a9714b;
-  --accent-contrast: #ffffff;
-  --accent-2-contrast: #2a1d08;
-  --accent-glow: color-mix(in srgb, var(--accent-2) 20%, transparent);
-  --neutral: #c9b49a;
-  --panel-bg: rgba(255, 240, 214, 0.04);
-  --panel-border: rgba(255, 240, 214, 0.11);
-  --panel-hover-bg: rgba(255, 240, 214, 0.07);
-  --panel-hover-border: rgba(232, 199, 122, 0.28);
-  --scroll-track: rgba(20, 13, 8, 0.75);
-  --scroll-thumb: rgba(232, 199, 122, 0.24);
-  --scroll-thumb-hover: rgba(232, 199, 122, 0.42);
-  --color-white: #fff8ec;
-  --color-black: #120b06;
-  --chart-track: #4a382a;
-  --chart-hole: #241810;
-  --art-bg-from: #2a1c13;
-  --art-bg-via: #1d130d;
-  --art-border: rgba(232, 199, 122, 0.14);
-  --art-far: #3a291d;
-  --art-near-top: #4a3323;
-  --art-near-bottom: #1a120c;
-  --art-silhouette: #120b06;
-  --art-star: rgba(232, 199, 122, 0.6);
-  --art-glow: rgba(232, 199, 122, 0.18);
-  --art-accent: rgba(232, 199, 122, 0.5);
+   /* Espresso backgrounds */
+  --app-bg: #17110F;
+  --app-bg-solid: #17110F;
+  --surface-1: #211814;
+  --surface-2: #2C201A;
+  --surface-3: #392A22;
+
+  /* Typography */
+  --text-primary: #F7EDE0;
+  --text-secondary: #C9B8A7;
+
+  /* Warm accents: copper, gold, caramel */
+  --accent: #C47A48;
+  --accent-2: #F0BD78;
+  --accent-3: #E4A477;
+  --accent-4: #A96342;
+
+  --accent-contrast: #17110F;
+  --accent-2-contrast: #26180C;
+  --accent-glow: color-mix(
+    in srgb, var(--accent-2) 20%, transparent
+  );
+
+  /* Neutral */
+  --neutral: #BCA899;
+
+  /* Panel glass effects */
+  --panel-bg: rgba(255, 231, 207, 0.035);
+  --panel-border: rgba(236, 186, 145, 0.15);
+  --panel-hover-bg: rgba(255, 231, 207, 0.07);
+  --panel-hover-border: rgba(240, 189, 120, 0.38);
+
+  /* Scrollbars */
+  --scroll-track: rgba(19, 12, 9, 0.75);
+  --scroll-thumb: rgba(196, 122, 72, 0.32);
+  --scroll-thumb-hover: rgba(240, 189, 120, 0.55);
+
+  /* Base colors */
+  --color-white: #FFF8EF;
+  --color-black: #100B09;
+
+  /* Charts */
+  --chart-track: #48362D;
+  --chart-hole: #211814;
+
+  /* Decorative background artwork */
+  --art-bg-from: #352118;
+  --art-bg-via: #211611;
+  --art-border: rgba(240, 189, 120, 0.18);
+  --art-far: #493025;
+  --art-near-top: #67412D;
+  --art-near-bottom: #17110F;
+  --art-silhouette: #100B09;
+  --art-star: rgba(240, 189, 120, 0.7);
+  --art-glow: rgba(233, 158, 88, 0.22);
+  --art-accent: rgba(240, 189, 120, 0.55);
+
+  /* Optional SOC status colors */
+  --status-success: #45B8A4;
+  --status-warning: #F0BD78;
+  --status-danger: #E87676;
+  --status-info: #87A9D8;
+
+  /* Optional chart palette */
+  --chart-1: #C47A48;
+  --chart-2: #F0BD78;
+  --chart-3: #45B8A4;
+  --chart-4: #A88ACB;
+  --chart-5: #E87676;
+  --chart-6: #87A9D8;
 }
 
 [data-theme="cyber"] {

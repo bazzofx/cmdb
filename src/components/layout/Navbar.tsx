@@ -39,26 +39,40 @@ export const Navbar: React.FC<NavbarProps> = ({
     .map(part => part[0]?.toUpperCase())
     .join('') || user.email[0]?.toUpperCase() || '?';
   return (
-    <header className="h-16 border-b border-white/[0.08] bg-[var(--app-bg)]/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none">
+    <header className="h-17 border-b border-white/[0.08] bg-[var(--app-bg)]/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Brand: SOC CMDB */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => onNavigate('overview')}
-          aria-label="SOC CMDB — return to Infrastructure Overview"
-          className="flex items-center gap-2.5 cursor-pointer group text-left transition-opacity hover:opacity-90"
-          title="SOC CMDB — return to Infrastructure Overview"
+          aria-label="SOC CMDB"
+          className="flex items-center gap-4.5 cursor-pointer  group text-left transition-opacity hover:opacity-75"
+          title="SOC CMDB"
         >
-          <span className="relative h-10 w-10 shrink-0 overflow-hidden">
+          {/* <span className="relative h-10 w-10 shrink-0 overflow-wrap">
             <img
               src="/assets/logo.png"
               alt=""
               aria-hidden="true"
-              className="absolute left-1/2 top-0 h-[165%] w-[165%] max-w-none -translate-x-1/2 object-contain drop-shadow-[0_0_10px_rgba(59,130,246,0.35)] transition-transform duration-300 group-hover:scale-105"
+              className="absolute left-1/2 -top-[9px] h-[165%] w-[165%] max-w-none -translate-x-1/2 object-contain drop-shadow-[0_0_10px_rgba(59,130,246,0.35)] transition-transform duration-300 group-hover:scale-105"
             />
-          </span>
-          <span className="hidden sm:inline font-extrabold text-base tracking-wider text-white uppercase font-sans">
-            SOC <span className="text-cyan-400">CMDB</span>
-          </span>
+          </span> */}
+            <span
+              className="hidden sm:inline-block text-[24px] font-extrabold uppercase tracking-[0.12em]
+              [font-family:'SixtyFour',sans-serif]
+              bg-gradient-to-b from-white via-slate-300 to-slate-500
+              bg-clip-text text-transparent
+              drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]
+              animate-[pulse_6s_ease-in-out_infinite]"
+            >
+              SOC{" "}
+              <span
+                className="bg-gradient-to-b from-cyan-100 via-cyan-400 to-blue-500
+                bg-clip-text text-transparent
+                drop-shadow-[0_0_10px_rgba(34,211,238,0.55)]"
+              >
+                CMDB
+              </span>
+            </span>
         </button>
       </div>
 
