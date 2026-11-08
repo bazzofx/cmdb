@@ -85,11 +85,11 @@ export const ServerDetailDrawer: React.FC<ServerDetailDrawerProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold font-mono text-white tracking-wide">
-                      {server?.host || 'Loading host...'}
+                      {server?.vm || 'Loading…'}
                     </h2>
                     {server && (
                       <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300 border border-white/10">
-                        {server.vm}
+                        {server.host}
                       </span>
                     )}
                   </div>
