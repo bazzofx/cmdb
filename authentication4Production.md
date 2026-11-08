@@ -43,7 +43,7 @@ Treat every unchecked box as a blocker.
 | 12 | `data/csm_database.json` is readable only by the service account | It contains password hashes, sessions and manager emails |
 | 13 | Backups include `users`, `sessions` and `audit_logs` | Account and evidence recovery |
 | 14 | The audit-log cap is raised or shipped to a SIEM | The default cap is 500 events |
-| 15 | Google Fonts/external requests removed and a CSP added | Air-gapped browsers must not reach the internet |
+| 15 | All fonts/assets are local and no external runtime requests remain; CSP added | Air-gapped browsers must not reach the internet |
 | 16 | NTP is configured on the host | Session/audit timestamps and future TOTP |
 | 17 | `start-dev.bat` is not used in production | It is a developer convenience only |
 | 18 | Login failure/lockout monitoring is in place | Detect credential attacks |
@@ -148,13 +148,12 @@ The log is currently capped at 500 events and stored in the same JSON file. Befo
 
 ## 9. Air-gap hardening
 
-The application still loads Google Fonts from `index.html` (lines 12–14). **Remove those links and self-host the font files** in `public/assets/fonts`, with `@font-face` rules in `src/index.css`. Otherwise browsers attempt external connections and silently fall back to system fonts.
+The application now serves Roboto, Plus Jakarta Sans and JetBrains Mono locally from `public/fonts`, and `index.html` no longer references Google Fonts. Verify the built `dist/index.html` contains no `fonts.googleapis.com` or `fonts.gstatic.com` reference and that the font files are present in the deployed `public/fonts` directory. See [Technology stack, fonts and external assets](docs/technology-and-assets.md).
 
 Also:
 
 - Add a Content-Security-Policy such as `default-src 'self'; connect-src 'self'; font-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'`.
 - Ship dependencies as a vendored `node_modules` directory or a pre-built container image. `npm install` in an air-gapped host will fail unless a local registry/mirror exists.
-- Remove unused network-capable dependencies (for example `@google/genai`, which is not used).
 - Disable telemetry and external error reporting if any is added later.
 - Ensure the internal CA certificate is trusted by the browser and the Node process if the app calls internal HTTPS services.
 - Run an internal NTP service.

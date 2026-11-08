@@ -108,7 +108,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 - The Secure Boot column is labelled from `efi_secure_boot` but filters with the key `secure_boot`; the chip therefore reads "secure boot". Values are `TRUE`, `FALSE` and `UNKNOWN`.
 - The `business_unit` filter also matches `sub_business_unit` values, and the `sub_business_unit` filter also matches `business_unit` values. A filter can therefore return more than its label implies.
 - `annotation` has no handler in `/api/servers`, so that column filter is sent and silently ignored; `host` is an exact match, unlike the free-text `q` search.
-- Filter keys inherited from Overview — `ownership=missing` and `email=missing` — do not behave usefully: the first is unknown to the API and the second is an equality match that finds nothing.
+- `manager=Unassigned` (also `missing`/`none`/`empty`) filters servers with no manager; the Manager column dropdown adds an "Unassigned" option when such servers exist. The `email=missing` filter inherited from Overview is still an equality match and finds nothing.
 - Searching is debounced by 350 ms, so typing a hostname sends one request rather than one per keystroke. Responses are not cancelled, so a slow earlier request can still land after a newer one.
 - No state is reflected in the URL, so a filtered view cannot be bookmarked or shared as a link.
 - Sorting is a lowercase string compare server-side; booleans and `null` secure-boot values sort unpredictably.

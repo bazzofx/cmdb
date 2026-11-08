@@ -172,6 +172,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     }
     options.secure_boot = options.efi_secure_boot;
+    const unassignedManagerCount = allServers.filter(
+      server => !String(server.manager || '').trim(),
+    ).length;
+    if (unassignedManagerCount > 0) {
+      options.manager = [
+        ...(options.manager ?? []),
+        { value: 'Unassigned', label: 'Unassigned', count: unassignedManagerCount },
+      ].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    }
     return options;
   }, [allServers]);
 

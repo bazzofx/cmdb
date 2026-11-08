@@ -25,11 +25,10 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 |---|---|
 | Confirm fleet size and how much is powered on | "Total Servers" or "Online" KPI card (Online filters Inventory to `power_state=poweredOn`) |
 | Check secure boot compliance exposure | "Secure Boot" KPI (filters `secure_boot=TRUE`); "Top Risks" item 2 filters `secure_boot=FALSE` |
-| Find unowned or uncontactable servers | "Ownership Complete" KPI (opens Ownership Explorer) or the "Missing Owner" / "Missing Email" telemetry rows |
+| Find unowned or uncontactable servers | "Ownership Complete" KPI (opens Ownership Explorer) or the "Missing Owner" / "Missing Email" telemetry items |
 | Review product coverage | "Products" KPI or the "All Products" link on the Product Counts panel |
-| Review business unit allocation | Any bar on "Servers by Business Unit" (filters `business_unit`) or "All BUs" |
-| See which environments exist | Environment chips in the Operational Telemetry card (filters `environment`) |
-| Open the datacenter view | "Datacenters" telemetry row (opens Infrastructure Map) |
+| Review business unit allocation | Any bar on "Servers by Business Unit" or any slice/legend row in "Business Unit Distribution" (filters `business_unit`), or "All BUs" |
+| Open the datacenter view | "Datacenters" telemetry item (opens Infrastructure Map) |
 | Start incident triage | "View All" on Top Risks, Top Risks item 1, or the navbar incidents pill |
 | Audit recent changes | "View All" on Recent Activity (opens Settings) |
 
@@ -45,7 +44,9 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 **Row B — two donuts.** Left: "Power State Distribution" with an `n% ACTIVE` pill, a donut whose centre shows the powered-on percentage, and a legend of "Powered On", "Powered Off" and "Suspended". Right: "Security Posture" with sub-label "EFI Secure Boot & Hardware", a donut showing the secure percentage and a four-row legend: "Secure", "At Risk", "At Risk (High)", "Unknown / Disabled".
 
-**Right column.** "Incidents & Alerts" card with a static `1 Active` badge, an Incidents/Alerts legend, a hand-drawn spline chart and Mon–Sun markers. Below it, "Operational Telemetry / Secondary Metrics" with rows for Sub-Business Units, Datacenters, Support Teams, Unique Managers, Missing Owner, Missing Email and Incomplete Metadata, then an "Environments" chip list.
+**Right column.** "Business Unit Distribution" card: a donut/pie on the left with its legend immediately to the right, matching the "Power State Distribution" layout. It reads `servers_by_business_unit`, shows a coloured legend with count and percentage, a centre readout that switches from total servers to the hovered unit, and a `N BUs` badge. Hovering a slice highlights it and updates the centre count; clicking a slice or legend row opens Inventory with `business_unit=<name>`. The three top-row cards (Servers by Business Unit, Product Counts and Business Unit Distribution) share a 340px height at desktop widths so their tops and bottoms align.
+
+**Full-width Operational Telemetry bar.** Below the middle chart grid and above the bottom row, a single compact bar spans the content width. It contains seven single-line items in two rows (four then three): Sub-Business Units, Datacenters, Support Teams, Unique Managers, Missing Owner, Missing Email and Incomplete Metadata. Each item has a small icon, a label and a colour-coded number; the whole item is clickable and navigates to the related view or Inventory filter. The old Environments chip list is no longer rendered on Overview.
 
 **Bottom row — three panels.** "Infrastructure Health" with four fixed gauges (Availability 100%, Performance 99.8%, Patch Level 98%, Compliance 87%). "Top Risks" with a "View All" link and three fixed risk rows. "Recent Activity" with a "View All" link and four fixed activity lines.
 
@@ -55,24 +56,24 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 | UI label | Source field / API | Notes |
 |---|---|---|
-| Total Servers | `total_servers` (`/api/stats`) | Falls back to `9` when the value is falsy, so a true zero renders as 9 |
-| Online | `powered_on_servers` / `total_servers` | Numerator falls back to `9` only when nullish; percentage is rounded |
-| Products | `total_products` | Falls back to the breakdown length, then `3` |
-| Secure Boot | `secure_boot_status[{name:'Enabled'}].count` | Default `6` enabled / `3` disabled when the array is missing |
-| Ownership Complete | `ownership_completeness.fully_assigned` | Default is the whole fleet (`total_servers`) |
+| Total Servers | `total_servers` (`/api/stats`) | Exact value; zero renders as zero |
+| Online | `powered_on_servers` / `total_servers` | Missing numerator defaults to 0; percentage is rounded |
+| Products | `total_products` | Falls back to the breakdown length when absent |
+| Secure Boot | `secure_boot_status[{name:'Enabled'}].count` | Missing array defaults to 0 enabled / 0 disabled |
+| Ownership Complete | `ownership_completeness.fully_assigned` | Missing value defaults to 0 |
 | Servers by Business Unit | `servers_by_business_unit` | Server sorts descending; the view slices the first six |
+| Business Unit Distribution | `servers_by_business_unit` | One donut slice and legend row per BU; hover shows count/percentage; click filters Inventory by `business_unit`; the `Unassigned` slice is not clickable |
 | Product Counts (Top 10) | `servers_by_product` | Excludes `Unassigned`, already limited to 10 server-side; static NDM/Housing/Pulse VTM fallback |
 | Power State Distribution | `powered_on_servers`, `powered_off_servers` | `powered_off` is `total - powered_on`, so suspended hosts count as powered off |
 | Security Posture donut | `secure_boot_status` Enabled/Disabled | Unknown count is not plotted; "At Risk" rows are literal zeros |
-| Incidents & Alerts | none | Chart, "1 Active" badge and timings are static |
 | Sub-Business Units | `total_sub_business_units` | Distinct non-empty values |
 | Datacenters | `total_datacenters` | Distinct non-empty values |
 | Support Teams | `total_support_teams` | Distinct non-empty values |
 | Unique Managers | `total_unique_managers` | Distinct non-empty values |
-| Missing Owner | `servers_missing_ownership` | Servers with no manager **or** no business unit |
+| Missing Owner | `ownership_completeness.missing_manager` | Servers with no manager; the item opens Inventory with `manager=Unassigned` |
 | Missing Email | `servers_missing_contact` | Servers with no email |
 | Incomplete Metadata | `servers_incomplete_metadata` | Missing product, function, org short code or sub-BU |
-| Environments chips | `servers_by_environment` | Rendered as `name: count` |
+| Incomplete Metadata | `servers_incomplete_metadata` | Servers missing product, function, org code or sub-BU |
 | Infrastructure Health gauges | none | Hard-coded 100 / 99.8 / 98 / 87 |
 | Top Risks | none | Hard-coded three rows |
 | Recent Activity | none | Hard-coded four rows; `recentLogs` prop is fetched but never rendered |
@@ -82,7 +83,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 **1. Chase unowned servers.**
 1. Read the "Ownership Complete" card to see how many servers have manager, email, business unit and support team set.
 2. Click it to open Ownership Explorer for the full breakdown.
-3. Alternatively click "Missing Owner" in Operational Telemetry. Note that this sends `ownership=missing`, which `/api/servers` does not understand, so Inventory opens unfiltered — use the Manager column filter there instead.
+3. Alternatively click "Missing Owner" in Operational Telemetry. This now opens Inventory with the **Manager: Unassigned** filter, which the servers endpoint understands.
 
 **2. Check secure boot exposure.**
 1. Read "Secure Boot" in the KPI row for the enabled count and percentage.
@@ -102,11 +103,11 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 - The time-range dropdown is not wired to any API call. Choosing "Last 30 Days" changes the label only.
 - Every "↑ 0% vs previous period" trend and every Infrastructure Health gauge is static decoration; do not quote them as measurements.
-- The "Incidents & Alerts" panel does not read incidents. The badge always says `1 Active`, while the navbar pill shows the real count derived from `/api/incidents`.
+- The "Business Unit Distribution" pie reads `/api/stats`; clicking a slice navigates to Inventory with `business_unit=<name>`. The `Unassigned` slice is intentionally not clickable because the Inventory business-unit filter cannot match an empty value.
 - "Recent Activity" does not read the audit log, even though `recentLogs` is fetched on load and passed in.
 - The "Suspended" legend row is hard-coded to `0 (0%)`; suspended hosts are already inside the powered-off figure.
 - "At Risk" and "At Risk (High)" are literal zeros; only Enabled and Disabled secure boot counts are real.
-- The "Missing Owner" telemetry row sends `ownership=missing`, which the servers endpoint ignores, and "Missing Email" sends `email=missing`, which is an equality match and therefore returns no rows. Both routes land on Inventory without a useful filter.
+- The "Missing Owner" telemetry item uses `ownership_completeness.missing_manager` and opens Inventory with `manager=Unassigned`; the servers endpoint treats `Unassigned`/`missing`/`none`/`empty` as "no manager". "Missing Email" still sends `email=missing`, which is an equality match and returns no rows.
 - Falsy-to-default coercion means a genuinely empty database still shows "Total Servers 9" and "Products 3" (drawn from the static fallback list) while Inventory shows none.
 - Clicking a KPI never opens the server drawer; `onSelectServer` is declared on the props interface but not used here.
 - Percentages are computed against all servers, including powered-off ones, so the donut and KPI percentages are fleet shares, not availability figures.
@@ -137,7 +138,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 | Business unit bar | `inventory` | `business_unit=<name>` |
 | Product bar | `inventory` | `product=<name>` |
 | Environment chip | `inventory` | `environment=<name>` |
-| Missing Owner row | `inventory` | `ownership=missing` (ignored by the API) |
+| Missing Owner item | `inventory` | `manager=Unassigned` |
 | Missing Email row | `inventory` | `email=missing` (equality match, no rows) |
 | Products card, All Products | `products` | none |
 | Ownership Complete card | `ownership-explorer` | none |
@@ -150,7 +151,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 Rows that pass no filter keys leave whatever filters Inventory already had in place, because `App.handleNavigate` only overrides `inventoryFilters` when `filterParams !== undefined`.
 
-**Extension points and known rough edges.** Wire `timeRange` to a real `from`/`to` query so trends become meaningful; replace the `|| 9` style fallbacks with explicit empty states; render `recentLogs` in Recent Activity; either implement `ownership=missing` server-side or change the chip to a supported key; drive Infrastructure Health and Top Risks from `/api/incidents` and `/api/stats` rather than literals; use `onSelectServer` to open the drawer from a small "top servers" list if one is added. The static NDM/Housing/Pulse VTM product fallback will surface fictional data if `servers_by_product` ever comes back empty.
+**Extension points and known rough edges.** Wire `timeRange` to a real `from`/`to` query so trends become meaningful; replace the `|| 9` style fallbacks with explicit empty states; render `recentLogs` in Recent Activity; drive Infrastructure Health and Top Risks from `/api/incidents` and `/api/stats` rather than literals; use `onSelectServer` to open the drawer from a small "top servers" list if one is added. The static NDM/Housing/Pulse VTM product fallback will surface fictional data if `servers_by_product` ever comes back empty.
 
 ## 8. Related pages
 

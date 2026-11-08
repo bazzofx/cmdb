@@ -48,6 +48,7 @@ interface IncidentTriageViewProps {
   initialServerIds?: string[];
   onNavigateToArchive?: () => void;
   onRefreshIncidents?: () => void;
+  onIncidentCreated?: () => void;
   canWrite?: boolean;
 }
 
@@ -56,6 +57,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
   initialServerIds,
   onNavigateToArchive,
   onRefreshIncidents,
+  onIncidentCreated,
   canWrite = true,
 }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -177,25 +179,6 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
     try {
       const imp = await api.getIncidentImpact(id);
       setImpact(imp);
-
-      // Seed initial sample host detail if empty for demonstration
-      if (inc && (!inc.host_details || Object.keys(inc.host_details).length === 0)) {
-        const seeded: Record<string, IncidentHostDetail> = {};
-        imp.affected_servers.forEach((s, idx) => {
-          seeded[s.id] = {
-            server_id: s.id,
-            status: idx === 0 ? 'Patching' : idx === 1 ? 'Isolated' : 'To be contacted',
-            patch_engineer: idx === 0 ? 'Sarah Jenkins' : idx === 2 ? 'David Vance' : '',
-            patching_status: idx === 0 ? 'Patched' : idx === 2 ? 'In progress' : 'Not Started',
-            patching_date: idx === 0 ? '2026-10-28' : '',
-            ticket_number: idx === 0 ? 'INC-8821' : idx === 2 ? 'CHG-4019' : '',
-            notes: idx === 0 ? 'Applied emergency microcode hotfix to hypervisor core' : '',
-            communicated: idx === 0 || idx === 1,
-            communication_date: idx === 0 ? '2026-10-28' : undefined,
-          };
-        });
-        setHostDetails(seeded);
-      }
     } catch (err) {
       console.error('Failed to load incident impact:', err);
     }
@@ -384,6 +367,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       setNewHostnamesInput('');
       await loadIncidents();
       handleSelectIncident(created.id, created);
+      onIncidentCreated?.();
     } catch (err) {
       console.error('Failed to create incident:', err);
     }

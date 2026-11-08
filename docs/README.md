@@ -5,7 +5,7 @@ This folder is the **documentation forwarder**: start here, pick the path that m
 The documentation describes the application **as implemented in this repository**, not an aspirational roadmap. Where a control is static, hard-coded or only partially wired, the page says so.
 
 - Application: React 19 + Vite 8 frontend, Express + TypeScript backend, JSON data store
-- Documentation last reviewed: 7 November 2026
+- Documentation last reviewed: 8 November 2026
 - Source of truth: `src/`, `server.ts`, and `data/csm_database.json`
 
 ## Start here
@@ -32,7 +32,7 @@ The documentation describes the application **as implemented in this repository*
 | 6 | [Infrastructure Map](./pages/06-infrastructure-map.md) | `infrastructure-map` | Hypervisors, datacenters, networks and BU infrastructure groupings |
 | 7 | [Incidents](./pages/07-incident-triage.md) | `incident-triage` | Incident creation, host triage, impact analysis, patch targets, report export |
 | 8 | [Archive Incident](./pages/08-archived-incidents.md) | `archived-incidents` | Closed investigations, reopen, archival reporting |
-| 9 | [Communications](./pages/09-communications.md) | not routed | Contact list preview and templated stakeholder mail |
+| 9 | [Communications](./pages/09-communications.md) | not routed | Contact list preview and templated per-stakeholder mail with masked IPs |
 | 10 | [Reports](./pages/10-reports.md) | `reports` | The 12 standard reports, summaries, drill-through and exports |
 | 11 | [Data Sync](./pages/11-data-management.md) | `data-management` | CSV import wizard, strategies, validation, history and reset |
 | 12 | [Settings & Audit](./pages/12-settings-and-audit.md) | `settings` | Environment status, audit log and admin user/role management |
@@ -42,6 +42,7 @@ Supporting documents:
 - [Architecture](./architecture.md) — stack, data model, API surface, cross-view navigation and known limitations
 - [Operations runbook](./operations-runbook.md) — install, run, build, backup, reset, import and verification
 - [Authentication for production](../authentication4Production.md) — local auth, roles, secure deployment checklist and LDAP plan
+- [Technology stack, fonts and external assets](./technology-and-assets.md) — high-level stack, font sourcing, local copies and external requests
 
 ## The reports at a glance
 

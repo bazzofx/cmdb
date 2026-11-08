@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Mail,
   Copy,
@@ -10,6 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
+import type { CommunicationsPreview } from '../../services/api.js';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue.js';
 import { downloadCsv } from '../../utils/export.js';
 import { todayIso } from '../../utils/format.js';
@@ -18,16 +19,18 @@ interface CommunicationsViewProps {
   initialServerIds?: string[];
 }
 
+/**
+ * Stable identity for a stakeholder card. The current API sends `id`, but a
+ * server still running the pre-`id` build is treated gracefully so the radio
+ * group cannot collapse into an undefined comparison.
+ */
+const contactKey = (contact: CommunicationsPreview['contacts'][number]): string =>
+  contact.id || contact.email || `no-email-${contact.manager}`;
+
 export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
   initialServerIds,
 }) => {
-  const [data, setData] = useState<{
-    total_contacts: number;
-    valid_emails: number;
-    missing_emails: number;
-    contacts: any[];
-    preview: { subject: string; body: string };
-  } | null>(null);
+  const [data, setData] = useState<CommunicationsPreview | null>(null);
 
   const [selectedTemplate, setSelectedTemplate] = useState<'incident' | 'vulnerability' | 'patching' | 'maintenance' | 'ownership'>('incident');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
@@ -44,14 +47,32 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
   const debouncedIncidentTitle = useDebouncedValue(incidentTitle, 400);
   const debouncedTargetDate = useDebouncedValue(targetDate, 400);
 
-  // Contact selection checkboxes
-  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+  // The directory is single-select: one stakeholder is previewed/emailed at a
+  // time so the template always shows that owner's linked servers.
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const previewRequestRef = useRef(0);
+
+  const selectedContact = data?.contacts.find(c => contactKey(c) === selectedContactId) ?? null;
+  const selectedEmail = selectedContact && !selectedContact.missing_email
+    ? selectedContact.email
+    : '';
 
   useEffect(() => {
-    loadPreview();
-  }, [selectedTemplate, debouncedIncidentRef, debouncedIncidentTitle, severity, debouncedTargetDate, initialServerIds]);
+    void loadPreview();
+  }, [
+    selectedTemplate,
+    debouncedIncidentRef,
+    debouncedIncidentTitle,
+    severity,
+    debouncedTargetDate,
+    initialServerIds,
+    selectedContactId,
+  ]);
 
   const loadPreview = async () => {
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
+
     try {
       const res = await api.previewCommunications({
         server_ids: initialServerIds,
@@ -60,13 +81,26 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
         incident_title: debouncedIncidentTitle,
         severity,
         target_date: debouncedTargetDate,
+        contact_id: selectedContactId ?? undefined,
       });
+
+      // Ignore responses that were overtaken by a newer request.
+      if (requestId !== previewRequestRef.current) return;
+
       setData(res);
 
-      // Select all valid emails by default
-      const valid = new Set(res.contacts.filter(c => !c.missing_email).map(c => c.email));
-      setSelectedEmails(valid);
+      // Keep exactly one stakeholder selected: preserve the current choice
+      // when it still exists, otherwise fall back to the server's preview.
+      setSelectedContactId(prev => {
+        const responseKeys = res.contacts.map(contactKey);
+        if (prev && responseKeys.includes(prev)) return prev;
+        if (res.preview_contact_id && responseKeys.includes(res.preview_contact_id)) {
+          return res.preview_contact_id;
+        }
+        return responseKeys[0] ?? null;
+      });
     } catch (err) {
+      if (requestId !== previewRequestRef.current) return;
       console.error('Failed to load communications preview:', err);
     }
   };
@@ -82,10 +116,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
     setTimeout(() => setCopiedAction(null), 2000);
   };
 
-  const copySelectedEmails = () => {
-    const list = Array.from(selectedEmails).join(', ');
-    navigator.clipboard.writeText(list);
-    setCopiedAction('selected_emails');
+  const copySelectedEmail = () => {
+    if (!selectedEmail) return;
+    navigator.clipboard.writeText(selectedEmail);
+    setCopiedAction('selected_email');
     setTimeout(() => setCopiedAction(null), 2000);
   };
 
@@ -110,21 +144,17 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
     downloadCsv(`stakeholder_contacts_${todayIso()}.csv`, headers, rows);
   };
 
-  const toggleSelectEmail = (email: string) => {
-    setSelectedEmails(prev => {
-      const next = new Set(prev);
-      if (next.has(email)) next.delete(email);
-      else next.add(email);
-      return next;
-    });
+  const toggleSelectContact = (contactId: string) => {
+    // Single-select: clicking the active stakeholder keeps it selected, while
+    // clicking another one replaces the previous choice.
+    setSelectedContactId(contactId);
   };
 
   const openMailto = () => {
-    if (!data) return;
-    const bccList = Array.from(selectedEmails).join(',');
+    if (!data || !selectedEmail) return;
     const subject = encodeURIComponent(data.preview.subject);
     const body = encodeURIComponent(data.preview.body);
-    window.location.href = `mailto:?bcc=${bccList}&subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${encodeURIComponent(selectedEmail)}?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -156,7 +186,9 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
             </button>
             <button
               onClick={openMailto}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer shadow-lg shadow-blue-500/20"
+              disabled={!selectedEmail}
+              title={selectedEmail ? `Email ${selectedEmail}` : 'Select a stakeholder with an email address first'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium cursor-pointer shadow-lg shadow-blue-500/20"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Open in Email Client</span>
@@ -200,38 +232,40 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
               </button>
               <span>•</span>
               <button
-                onClick={copySelectedEmails}
-                className="text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                onClick={copySelectedEmail}
+                disabled={!selectedEmail}
+                className="text-blue-400 hover:text-blue-300 disabled:text-slate-600 disabled:no-underline underline cursor-pointer disabled:cursor-not-allowed"
               >
-                {copiedAction === 'selected_emails' ? 'Copied!' : `Copy Selected (${selectedEmails.size})`}
+                {copiedAction === 'selected_email' ? 'Copied!' : 'Copy Selected'}
               </button>
             </div>
           </div>
 
           <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
             {data?.contacts.map(c => {
-              const isSelected = selectedEmails.has(c.email);
+              const key = contactKey(c);
+              const isSelected = selectedContactId === key;
               return (
-                <div
-                  key={c.manager + (c.email || '')}
-                  className={`p-3 rounded-lg border transition-all text-xs space-y-1.5 ${
-                    c.missing_email
+                <label
+                  key={key}
+                  className={`block p-3 rounded-lg border transition-all text-xs space-y-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-950/30 border-blue-500/40 ring-1 ring-blue-500/30'
+                      : c.missing_email
                       ? 'bg-amber-950/20 border-amber-500/30'
-                      : isSelected
-                      ? 'bg-blue-950/30 border-blue-500/40'
-                      : 'bg-white/[0.02] border-white/5'
+                      : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      {!c.missing_email && (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectEmail(c.email)}
-                          className="rounded border-white/20 bg-white/5"
-                        />
-                      )}
+                      <input
+                        type="radio"
+                        name="stakeholder-selection"
+                        checked={isSelected}
+                        onChange={() => toggleSelectContact(key)}
+                        aria-label={`Preview message for ${c.manager}`}
+                        className="h-3.5 w-3.5 accent-blue-500 border-white/20 bg-white/5"
+                      />
                       <div>
                         <span className="font-bold text-white block">{c.manager}</span>
                         <span className="text-[11px] text-purple-300 font-medium">{c.business_unit}</span>
@@ -253,7 +287,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
                     )}
                     <span className="text-slate-400">Team: {c.support_team}</span>
                   </div>
-                </div>
+                </label>
               );
             })}
           </div>
@@ -273,6 +307,24 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
               <span>Copy Formatted Email</span>
             </button>
           </div>
+
+          {/* Which stakeholder the live template below is rendered for */}
+          {selectedContact && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-[11px] font-mono">
+              <span className="text-slate-300">
+                <span className="text-slate-500 uppercase text-[10px] mr-1.5">Previewing</span>
+                <span className="font-bold text-white">{selectedContact.manager}</span>
+                {selectedContact.email ? (
+                  <span className="text-slate-400"> · {selectedContact.email}</span>
+                ) : (
+                  <span className="text-amber-400"> · no email on record</span>
+                )}
+              </span>
+              <span className="text-slate-400">
+                {selectedContact.server_count} linked server{selectedContact.server_count === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
 
           {/* Template Selectors (Section 14.3: 5 reusable templates) */}
           <div className="flex flex-wrap gap-1.5 text-xs font-mono">
@@ -350,7 +402,12 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
                   <span className="text-blue-300 font-semibold">{data.preview.subject}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block uppercase mb-1">Message Body Preview:</span>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-slate-400 text-[10px] block uppercase">Message Body Preview:</span>
+                    <span className="text-[10px] text-amber-300/80" title="Only the last two octets of each IP are shown in outbound messages.">
+                      IPs masked as ***.***.x.x
+                    </span>
+                  </div>
                   <pre className="text-slate-200 whitespace-pre-wrap font-sans text-xs leading-relaxed max-h-72 overflow-y-auto">
                     {data.preview.body}
                   </pre>

@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import type {
   ServerRecord,
   Incident,
+  IncidentHostDetail,
   IncidentImpact,
   PatchCampaign,
   PatchTarget,
@@ -964,7 +965,14 @@ async function startServer() {
     }
     if (manager) {
       const wanted = parseFilterList(manager);
-      list = list.filter(s => matchesAnyFilter(wanted, [s.manager]));
+      const wantsUnassigned = wanted.some(value =>
+        ['unassigned', 'missing', 'none', 'empty'].includes(value.toLowerCase()),
+      );
+      list = list.filter(
+        s =>
+          (wantsUnassigned && !cleanString(s.manager)) ||
+          matchesAnyFilter(wanted, [s.manager]),
+      );
     }
     if (support_team) {
       const wanted = parseFilterList(support_team);
@@ -1555,7 +1563,13 @@ async function startServer() {
       return res.status(400).json({ error: 'Incident title is required' });
     }
 
-    const affectedIds = new Set<string>(Array.isArray(body.affected_server_ids) ? body.affected_server_ids : []);
+    const requestedIds: unknown[] = Array.isArray(body.affected_server_ids) ? body.affected_server_ids : [];
+    const existingServerIds = new Set(db.data.servers.map(s => s.id));
+    const affectedIds = new Set<string>(
+      requestedIds.filter(
+        (id): id is string => typeof id === 'string' && existingServerIds.has(id),
+      ),
+    );
     if (body.raw_input && typeof body.raw_input === 'string') {
       const tokens = body.raw_input.split(/[\r\n,;\s]+/).map((t: string) => t.trim().toLowerCase()).filter(Boolean);
       tokens.forEach((token: string) => {
@@ -1570,6 +1584,16 @@ async function startServer() {
       });
     }
 
+    const initialHostDetails: Record<string, IncidentHostDetail> = {};
+    affectedIds.forEach(id => {
+      initialHostDetails[id] = {
+        server_id: id,
+        status: 'To be contacted',
+        patching_status: 'Not Started',
+        communicated: false,
+      };
+    });
+
     const newInc: Incident = {
       id: crypto.randomUUID(),
       incident_reference: body.incident_reference || `INC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1582,6 +1606,7 @@ async function startServer() {
       status: body.status || 'Open',
       assigned_engineer: body.assigned_engineer || 'SecOps Lead',
       affected_server_ids: Array.from(affectedIds),
+      host_details: initialHostDetails,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -1949,9 +1974,31 @@ async function startServer() {
     res.json(campaign.targets[serverId]);
   });
 
+  /**
+   * Masks the first two octets of an IPv4 address before it is written into an
+   * outbound stakeholder message, e.g. 152.114.2.55 -> ***.***.2.55.
+   * Anything that is not a plain IPv4 address is left untouched so hostnames
+   * and IPv6 addresses are not mangled.
+   */
+  const maskIpForMessage = (ip: unknown): string => {
+    const raw = cleanString(ip);
+    if (!raw) return 'N/A';
+
+    const slashIndex = raw.indexOf('/');
+    const address = slashIndex === -1 ? raw : raw.slice(0, slashIndex);
+    const suffix = slashIndex === -1 ? '' : raw.slice(slashIndex);
+    const octets = address.split('.');
+
+    if (octets.length === 4 && octets.every(octet => /^\d{1,3}$/.test(octet))) {
+      return `***.***.${octets[2]}.${octets[3]}${suffix}`;
+    }
+
+    return raw;
+  };
+
   // 12. COMMUNICATIONS CENTRE (Section 14)
   api.post('/communications/preview', (req: Request, res: Response) => {
-    const { server_ids, template_type, incident_reference, incident_title, severity, target_date } = req.body;
+    const { server_ids, template_type, incident_reference, incident_title, severity, target_date, contact_id } = req.body;
 
     let selectedServers: ServerRecord[] = [];
     if (Array.isArray(server_ids) && server_ids.length > 0) {
@@ -1962,6 +2009,7 @@ async function startServer() {
 
     // Deduplicate contacts by email
     const contactMap = new Map<string, {
+      id: string;
       manager: string;
       email: string;
       business_units: Set<string>;
@@ -1978,6 +2026,7 @@ async function startServer() {
 
       if (!contactMap.has(key)) {
         contactMap.set(key, {
+          id: key,
           manager,
           email,
           business_units: new Set(),
@@ -2001,6 +2050,7 @@ async function startServer() {
     });
 
     const contactList = Array.from(contactMap.values()).map(c => ({
+      id: c.id,
       manager: c.manager,
       email: c.email,
       missing_email: c.missing_email,
@@ -2037,30 +2087,40 @@ async function startServer() {
 
     const chosen = templates[template_type || 'incident'] || templates.incident;
 
-    // Build sample preview for the first contact
-    const first = contactList[0] || {
+    // Build the preview for the stakeholder the operator selected in the
+    // directory. Fall back to the first contact when no (or a stale) id is sent.
+    const requestedContactId = typeof contact_id === 'string' ? contact_id : '';
+    const previewContact = (requestedContactId
+      ? contactList.find(c => c.id === requestedContactId)
+      : undefined) || contactList[0] || {
+      id: 'john.lennon@acme.com',
       manager: 'John Lennon',
+      email: 'john.lennon@acme.com',
       business_unit: 'BRICK',
-      servers: [{ host: 'br1-sse-esx-23.prd.local', vm: 'br1-VM-SSS-3', ip: '10.200.68.76' }],
+      missing_email: false,
+      server_count: 1,
+      servers: [{ host: 'br1-sse-esx-23.prd.local', vm: 'br1-VM-SSS-3', ip: '10.200.68.76', bu: 'BRICK' }],
     };
 
-    const formatServerList = (srvs: any[]) =>
-      srvs.map(s => `  • Host: ${s.host} | VM: ${s.vm} | IP: ${s.ip}`).join('\n');
+    const formatServerList = (srvs: Array<{ host: string; vm: string; ip: string }>) =>
+      srvs
+        .map(s => `  • Host: ${s.host} | VM: ${s.vm} | IP: ${maskIpForMessage(s.ip)}`)
+        .join('\n');
 
     const previewSubject = chosen.subject
       .replace(/{{incident_reference}}/g, incident_reference || 'INC-2026-0842')
       .replace(/{{incident_title}}/g, incident_title || 'Critical Patching Advisory')
       .replace(/{{severity}}/g, severity || 'Critical')
-      .replace(/{{business_unit}}/g, first.business_unit || 'Default BU');
+      .replace(/{{business_unit}}/g, previewContact.business_unit || 'Default BU');
 
     const previewBody = chosen.body
-      .replace(/{{manager_name}}/g, first.manager)
-      .replace(/{{business_unit}}/g, first.business_unit)
+      .replace(/{{manager_name}}/g, previewContact.manager)
+      .replace(/{{business_unit}}/g, previewContact.business_unit)
       .replace(/{{incident_reference}}/g, incident_reference || 'INC-2026-0842')
       .replace(/{{incident_title}}/g, incident_title || 'Critical Patching Advisory')
       .replace(/{{severity}}/g, severity || 'Critical')
-      .replace(/{{affected_server_count}}/g, String(first.server_count || first.servers.length))
-      .replace(/{{affected_servers}}/g, formatServerList(first.servers))
+      .replace(/{{affected_server_count}}/g, String(previewContact.server_count ?? previewContact.servers.length))
+      .replace(/{{affected_servers}}/g, formatServerList(previewContact.servers))
       .replace(/{{target_completion_date}}/g, target_date || '2026-11-15');
 
     res.json({
@@ -2068,6 +2128,7 @@ async function startServer() {
       valid_emails: contactList.filter(c => !c.missing_email).length,
       missing_emails: contactList.filter(c => c.missing_email).length,
       contacts: contactList,
+      preview_contact_id: previewContact.id,
       preview: {
         subject: previewSubject,
         body: previewBody,

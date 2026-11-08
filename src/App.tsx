@@ -234,6 +234,7 @@ function AppShell() {
               onSelectServer={handleSelectServer}
               onNavigateToArchive={() => setCurrentView('archived-incidents')}
               onRefreshIncidents={loadDashboardData}
+              onIncidentCreated={() => setTargetedServerIds([])}
               canWrite={user.role !== 'viewer'}
             />
           )}

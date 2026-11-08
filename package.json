@@ -16,7 +16,6 @@
     "verify": "npm run verify:reports && npm run verify:incidents && npm run verify:auth"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/cytoscape": "^3.21.9",
     "@vitejs/plugin-react": "^6.1.1",

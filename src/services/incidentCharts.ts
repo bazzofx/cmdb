@@ -47,12 +47,12 @@ function drawCardBackground(
 
   // Title bar
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 13px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.fillText(title, 16, 24);
 
   if (subtitle) {
     ctx.fillStyle = '#64748B';
-    ctx.font = 'normal 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(subtitle, 16, 38);
   }
 
@@ -143,13 +143,13 @@ export function generateTriageStatusPieChart(data: ReportData, width = 500, heig
 
   // Center cutout text
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 18px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(total), centerX, centerY - 6);
 
   ctx.fillStyle = '#64748B';
-  ctx.font = 'normal 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'normal 9px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.fillText('SERVERS', centerX, centerY + 12);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -169,12 +169,12 @@ export function generateTriageStatusPieChart(data: ReportData, width = 500, heig
 
     // Label
     ctx.fillStyle = '#1E293B';
-    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 11px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(slice.label, legendX + 22, legendY + 11);
 
     // Count & percentage
     ctx.fillStyle = '#64748B';
-    ctx.font = 'normal 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`${slice.count} hosts (${pct}%)`, legendX + 160, legendY + 11);
 
     legendY += 26;
@@ -220,13 +220,13 @@ export function generateRemediationDonutChart(data: ReportData, width = 500, hei
 
   // Center text
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 18px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(`${metrics.patchedPct}%`, center1X, center1Y - 6);
 
   ctx.fillStyle = '#059669';
-  ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 9px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.fillText('PATCHED', center1X, center1Y + 12);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -245,11 +245,11 @@ export function generateRemediationDonutChart(data: ReportData, width = 500, hei
   items.forEach(item => {
     // Label and values
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(item.label, barStartX, currentY);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = 'normal 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 9px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(`${item.count}/${total} (${item.pct}%)`, width - 20, currentY);
     ctx.textAlign = 'left';
@@ -302,7 +302,7 @@ export function generateBusinessUnitBarChart(data: ReportData, width = 600, heig
 
     // BU Label (left aligned, truncated if necessary)
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10.5px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(bu.name, 16, currentY + 13);
 
     // Total Background Bar Track
@@ -321,11 +321,11 @@ export function generateBusinessUnitBarChart(data: ReportData, width = 600, heig
 
     // Numbers & percentage text on the right
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`${bu.patched}/${bu.total}`, startX + totalBarWidth + 8, currentY + 13);
 
     ctx.fillStyle = bu.patched === bu.total ? '#059669' : '#64748B';
-    ctx.font = 'normal 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 9.5px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`(${pct}%)`, startX + totalBarWidth + 48, currentY + 13);
 
     currentY += 36;
@@ -338,7 +338,7 @@ export function generateBusinessUnitBarChart(data: ReportData, width = 600, heig
   ctx.roundRect(startX, legendY, 12, 12, 2);
   ctx.fill();
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'normal 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'normal 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.fillText('Patched Systems', startX + 18, legendY + 10);
 
   ctx.fillStyle = '#E2E8F0';
@@ -383,7 +383,7 @@ export function generateProductBarChart(data: ReportData, width = 600, height = 
 
     // Label
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10.5px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(prod, 16, currentY + 13);
 
     // Track
@@ -400,11 +400,11 @@ export function generateProductBarChart(data: ReportData, width = 600, height = 
 
     // Value text
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`${count} hosts`, startX + barWidth + 8, currentY + 13);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = 'normal 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 9.5px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`(${pct}%)`, startX + barWidth + 56, currentY + 13);
 
     currentY += 32;
@@ -441,7 +441,7 @@ export function generateManagerBarChart(data: ReportData, width = 600, height = 
 
     // Manager Name
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(mgr.name, 16, currentY + 12);
 
     // Track
@@ -460,11 +460,11 @@ export function generateManagerBarChart(data: ReportData, width = 600, height = 
 
     // Text
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 9.5px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`${mgr.patched}/${mgr.total}`, startX + totalBarWidth + 8, currentY + 12);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = 'normal 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'normal 9px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText(`(${pct}%)`, startX + totalBarWidth + 48, currentY + 12);
 
     currentY += 30;

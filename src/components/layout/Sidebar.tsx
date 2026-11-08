@@ -4,7 +4,6 @@ import {
   Server,
   Building2,
   Package,
-  Shield,
   TriangleAlert,
   BarChart3,
   Settings,
@@ -73,14 +72,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'products',
-      label: '4_Product',
+      label: 'Products',
       icon: Package,
       badge: metrics?.productCount ? String(metrics.productCount) : null,
     },
     {
       id: 'ownership-explorer',
-      label: 'Ownership',
-      icon: Shield,
+      label: 'Ownership Graph',
+      icon: Network,
     },
     {
       id: 'infrastructure-map',

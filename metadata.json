@@ -1,7 +1,6 @@
 {
   "name": "CSM Server Ownership & Business Intelligence",
   "description": "Centralised visibility of server infrastructure, ownership, business units, technical relationships, incident triage, and operational responsibilities for Security and Infrastructure teams.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": []
 }
 

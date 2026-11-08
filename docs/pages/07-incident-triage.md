@@ -53,7 +53,7 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 
 **Action table mode.** Heading `Affected Asset Triage & Remediation Tracking (X of Y)`, a search input (`Filter hosts, IPs, engineers...`), `Clear Filters` when any filter is set, `Upload Hosts`, and `CSV`. Active filters appear as removable-labelled chips. Columns are `Host Identifier`, `VM`, `Primary IP`, `Business Unit`, `Product & Role`, `Manager`, `Triage Status`, `Call / Contact`, `Notes & Details`. Patched rows are tinted emerald with a tick. Rows have no pagination and no sort; the body shows `No affected systems match current criteria.` when empty. Hovering a row reveals a trash icon that opens the removal confirmation.
 
-**Modals.** *Notes* — `Investigation & Remediation Notes: <host>` with assigned engineer, patching status select, patching date, ticket number, a "notified" checkbox and a notes textarea; buttons `Cancel` and `Save Notes & Update Host`. *Close & Archive* — engineer input pre-filled `SecOps Lead`, closure summary textarea, `Confirm Close & Archive`. *Create* — reference pre-filled as `INC-<year>-<4 digits>`, title, severity, IOC/CVE, description, hostnames textarea and `Upload File` (`.txt`, `.csv`), `Create & Launch Triage`. *Upload / Add Data* — paste area, file upload, `Correlate & Add Data`, then a matched/unmatched result block. *Host Management* — read-only host facts plus `View Full Server Profile` and `Remove Host from Incident Triage`. *Remove* — `Confirm Remove`.
+**Modals.** *Notes* — `Investigation & Remediation Notes: <host>` with assigned engineer, patching status select, patching date, ticket number, a "notified" checkbox and a notes textarea; buttons `Cancel` and `Save Notes & Update Host`. *Close & Archive* — engineer input pre-filled `SecOps Lead`, closure summary textarea, `Confirm Close & Archive`. *Create* — reference pre-filled as `INC-<year>-<4 digits>`, title, severity, IOC/CVE, description, hostnames textarea and `Upload File` (`.txt`, `.csv`), `Create & Launch Triage`. The title, reference, severity, IOC/CVE and description are stored exactly as entered; the hostnames field and the current server selection define the incident scope. *Upload / Add Data* — paste area, file upload, `Correlate & Add Data`, then a matched/unmatched result block. *Host Management* — read-only host facts plus `View Full Server Profile` and `Remove Host from Incident Triage`. *Remove* — `Confirm Remove`.
 
 **Keyboard.** No shortcuts belong to this view. The application-level `/` and `Ctrl`/`Cmd`+`K` open the global search overlay (`src/App.tsx`).
 
@@ -110,7 +110,7 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 | Prop | Type | What it does |
 |---|---|---|
 | `onSelectServer` | `(id: string) => void` | Opens the server drawer. Called from the Host Management modal's `View Full Server Profile`. |
-| `initialServerIds` | `string[] \| undefined` | Used only as `affected_server_ids` when creating an incident. It does not pre-select, filter or pre-fill anything else. |
+| `initialServerIds` | `string[] \| undefined` | Used only as `affected_server_ids` when creating an incident, and cleared after a successful create. It does not pre-select, filter or pre-fill anything else. |
 | `onNavigateToArchive` | `() => void` | Renders the `Open Archive Incident` buttons in the banner and empty state. |
 | `onRefreshIncidents` | `() => void` | Fired after close/archive so `App` can refresh sidebar counts. |
 
@@ -135,7 +135,7 @@ Next, three panels side by side: `Linked Business Units` (scrollable, per-unit p
 |---|---|---|
 | `GET /api/incidents` | none — no paging, filtering or search | `Incident[]` including `host_details` |
 | `GET /api/incidents/:id/impact` | none | `IncidentImpact`: `affected_servers: ServerRecord[]`, `total_affected_servers`, unique BU/sub-BU/email/team/datacenter/hypervisor/network arrays, `correlation_leads[]` |
-| `POST /api/incidents` | `incident_reference`, `incident_title`, `severity`, `ioc_or_vulnerability`, `description`, `status`, `affected_server_ids`, `raw_input` | `201` with the created `Incident`; title is the only required field |
+| `POST /api/incidents` | `incident_reference`, `incident_title`, `severity`, `ioc_or_vulnerability`, `description`, `status`, `affected_server_ids`, `raw_input` | `201` with the created `Incident`; title is the only required field. `host_details` is initialised for every resolved server with `To be contacted` / `Not Started`. |
 | `PUT /api/incidents/:id` | any `Partial<Incident>`; close sends `status`, `closed_at`, `closed_by`, `description` | Updated `Incident` |
 | `POST /api/incidents/:id/servers` | `{ raw_input?: string, server_ids?: string[] }` | `{ incident, total_affected, matched_count, unmatched_count, matched_servers, unmatched_entries }` |
 | `PUT /api/incidents/:id/hosts/:serverId` | any subset of `IncidentHostDetail` | The stored detail object |
@@ -155,7 +155,8 @@ Matching is case-insensitive equality on `host`, `vm`, `primary_ip_address` and 
 **Extension points / known rough edges.**
 - The incident metrics and breakdowns are centralised in `services/incidentAnalysis.ts`; extend that module rather than recomputing values in a view.
 - There is no in-page hand-off to Communications; the page is still reachable only from Inventory's bulk `Contact List` action.
-- When `incident.host_details` is empty the component fabricates demo statuses (first host `Patching`/`Patched`/`Sarah Jenkins`, second `Isolated`, rest `To be contacted`). These values are never persisted, so a reload re-seeds or clears them.
+- New incidents persist the values entered in the create form and initialise every affected host with `status: To be contacted` and `patching_status: Not Started`. The create endpoint resolves the hostnames/VM/IP textarea against the current server inventory, ignores IDs that no longer exist, and stores only the resulting servers. No demo statuses, engineers, tickets, notes or communication flags are fabricated for a new incident.
+- Existing incidents with no stored `host_details` fall back to `To be contacted` per row until an analyst saves a change.
 - There is no denormalised cache: every host edit triggers a `PUT` and no re-fetch, so two analysts on the same incident will overwrite each other last-write-wins.
 - No validation on status transitions, dates or ticket formats; `patching_date` is whatever the date input yields.
 

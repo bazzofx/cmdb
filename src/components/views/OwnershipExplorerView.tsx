@@ -539,8 +539,8 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               shape: 'round-rectangle',
               label: 'data(label)',
               color: '#E8EDF7',
-              'font-size': '10px',
-              'font-family': 'Plus Jakarta Sans, JetBrains Mono, sans-serif',
+              'font-size': '12px',
+              'font-family': 'Roboto, JetBrains Mono, sans-serif',
               'font-weight': 600,
               'text-valign': 'center',
               'text-halign': 'center',
@@ -895,7 +895,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
         {/* Title & Count Badge */}
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-sm shrink-0">
-            <GitFork className="w-4 h-4" />
+            <GitFork className="w-22 h-4" />
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <h1 className="text-lg font-bold text-white tracking-wider font-sans shrink-0 uppercase">
@@ -908,11 +908,11 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
         <div className="flex items-center flex-nowrap gap-1.5 text-xs shrink-0 whitespace-nowrap">
           {/* Focus BU Dropdown */}
           <div className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-1 rounded-lg shrink-0">
-            <span className="text-[10px] font-mono text-[#8996AE] uppercase font-semibold">BU:</span>
+            <span className="text-[12px] font-mono text-[#8996AE] uppercase font-semibold">BU:</span>
             <select
               value={selectedBU}
               onChange={e => setSelectedBU(e.target.value)}
-              className="bg-transparent text-slate-200 text-[11px] font-mono focus:outline-none cursor-pointer max-w-[95px] truncate"
+              className="bg-transparent text-slate-200 text-[14px] font-mono focus:outline-none cursor-pointer max-w-[95px] truncate"
               title="Focus Business Unit"
             >
               <option value="all" className="bg-[#111A2E]">All</option>
@@ -933,7 +933,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
             title={`Connections: ${showConnections ? 'Active' : 'Hidden'}`}
           >
             <Share2 className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-bold">{showConnections ? 'ON' : 'OFF'}</span>
+            <span className="text-[12px] font-bold">{showConnections ? 'ON' : 'OFF'}</span>
           </button>
 
           {/* Visualization Option: Radial Orbit (Default) vs Linear Flow */}
@@ -948,7 +948,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               title="Radial Orbit View (Default): Central server ring with concentric arcs"
             >
               <Orbit className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-[10px]">Orbit</span>
+              <span className="text-[12px]">Orbit</span>
             </button>
             <button
               onClick={() => handleSwitchMode('linear')}
@@ -960,7 +960,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               title="Linear Flow View: Tiered governance columns"
             >
               <Workflow className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-[10px]">Linear</span>
+              <span className="text-[12px]">Linear</span>
             </button>
           </div>
 
@@ -978,7 +978,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                 <label
                   key={type}
                   title={`Toggle ${type.replace(/_/g, ' ')}`}
-                  className={`flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded cursor-pointer transition-colors ${
+                  className={`flex items-center gap-1 text-[12px] font-mono px-1 py-0.5 rounded cursor-pointer transition-colors ${
                     enabled ? 'text-slate-200 font-semibold' : 'text-slate-500 hover:text-slate-400'
                   }`}
                 >
@@ -1055,7 +1055,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               {getNodeIcon(hoverTooltip.data.type)}
               <span className="font-bold text-white truncate">{hoverTooltip.data.label?.replace('\n', ' ')}</span>
             </div>
-            <div className="text-[10px] text-[#8996AE] space-y-0.5">
+            <div className="text-[12px] text-[#8996AE] space-y-0.5">
               <div className="flex justify-between">
                 <span>Category:</span>
                 <span className="text-white capitalize">{hoverTooltip.data.type?.replace(/_/g, ' ')}</span>
@@ -1129,7 +1129,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
             <span>Topology adjusted for active selection.</span>
             <button
               onClick={handleResetFilters}
-              className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-mono text-[10px] cursor-pointer"
+              className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-mono text-[12px] cursor-pointer"
             >
               Reset
             </button>
@@ -1138,11 +1138,11 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
 
         {/* 3. REDESIGNED COMPACT LEGEND */}
         <div className="absolute right-4 bottom-4 p-3 rounded-xl bg-[#111A2E]/90 border border-slate-700/60 backdrop-blur-md text-[11px] font-mono space-y-1.5 select-none z-10 shadow-2xl">
-          <div className="text-[10px] text-[#8996AE] uppercase tracking-wider mb-1 font-semibold flex items-center gap-1.5">
+          <div className="text-[12px] text-[#8996AE] uppercase tracking-wider mb-1 font-semibold flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
             <span>Ownership Legend</span>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-[#1C1230] border border-[#A855F7]" />
               <span className="text-slate-300">Business Unit</span>
@@ -1172,7 +1172,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
             <div className="space-y-4">
               <div className="flex items-start justify-between pb-2 border-b border-white/10">
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400">
+                  <span className="text-[12px] font-mono uppercase tracking-wider text-cyan-400">
                     Node Details ({selectedNode.type?.replace(/_/g, ' ')})
                   </span>
                   <h3 className="text-sm font-bold text-white font-mono break-words">
@@ -1297,7 +1297,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
 
               {/* Connected Neighbors list */}
               <div className="space-y-2 pt-2 border-t border-white/10">
-                <span className="text-[10px] font-mono uppercase text-[#8996AE] tracking-wider font-semibold">
+                <span className="text-[12px] font-mono uppercase text-[#8996AE] tracking-wider font-semibold">
                   Linked Entities ({selectedNode.neighbors?.length || 0}):
                 </span>
                 <div className="space-y-1 max-h-48 overflow-y-auto">

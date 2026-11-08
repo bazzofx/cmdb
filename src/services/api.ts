@@ -115,13 +115,17 @@ export interface CommunicationsPreview {
   valid_emails: number;
   missing_emails: number;
   contacts: Array<{
+    id: string;
     business_unit: string;
+    sub_business_unit?: string;
     manager: string;
     email: string;
     server_count: number;
     support_team: string;
     missing_email?: boolean;
+    servers?: Array<{ host: string; vm: string; ip: string; bu: string }>;
   }>;
+  preview_contact_id?: string;
   preview: { subject: string; body: string };
 }
 
@@ -269,6 +273,7 @@ export const api = {
     incident_title?: string;
     severity?: string;
     target_date?: string;
+    contact_id?: string;
   }) =>
     request<CommunicationsPreview>('/communications/preview', {
       method: 'POST',
