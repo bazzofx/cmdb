@@ -1,6 +1,6 @@
 {
-  "name": "CSM Server Ownership & Business Intelligence",
-  "description": "Centralised visibility of server infrastructure, ownership, business units, technical relationships, incident triage, and operational responsibilities for Security and Infrastructure teams.",
+  "name": "SOC CMDB Ownership & Intel",
+  "description": "Centralised visibility of server infrastructure, ownership, business units and  incident triage for the Security Team",
   "requestFramePermissions": []
 }
 
