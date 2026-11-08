@@ -12,7 +12,6 @@ import type {
   IncidentImpact,
   PatchCampaign,
   PatchTarget,
-  AuditLogEvent,
   ImportHistoryItem,
   DashboardMetrics,
   AuthUser,
@@ -32,14 +31,13 @@ import {
   validatePassword,
   verifyPassword,
 } from './auth.js';
-import type { SessionRecord, UserRecord } from './auth.js';
+import type { UserRecord } from './auth.js';
+import { db as store } from './src/db/store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const DATA_DIR = path.resolve(__dirname, 'data');
-const DB_FILE = path.resolve(DATA_DIR, 'csm_database.json');
 const CSV_SOURCE_FILE = path.resolve(__dirname, 'public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv');
 const AUDIT_LOG_LIMIT = Math.max(500, parseInt(process.env.AUDIT_LOG_LIMIT || '5000', 10) || 5000);
 
@@ -140,117 +138,26 @@ export function sanitizeServerRecord(record: Partial<ServerRecord>): ServerRecor
   };
 }
 
-interface DatabaseSchema {
-  servers: ServerRecord[];
-  incidents: Incident[];
-  patch_campaigns: PatchCampaign[];
-  audit_logs: AuditLogEvent[];
-  import_history: ImportHistoryItem[];
-  users: UserRecord[];
-  sessions: SessionRecord[];
-}
+// ---------------------------------------------------------------------------
+// Persistence: two embedded SQLite databases (auth + app) — see src/db/store.ts.
+// `db` aliases the store singleton; a legacy data/csm_database.json is imported
+// automatically on first boot and never modified.
+// ---------------------------------------------------------------------------
+const db = store;
 
-// In-memory persistent database instance
-class Database {
-  data: DatabaseSchema = {
-    servers: [],
-    incidents: [],
-    patch_campaigns: [],
-    audit_logs: [],
-    import_history: [],
-    users: [],
-    sessions: [],
-  };
-
-  init() {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    if (fs.existsSync(DB_FILE)) {
-      try {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        this.data = JSON.parse(raw);
-        // Clean and sanitize all server records on load (stripping whitespace and null characters)
-        if (Array.isArray(this.data.servers)) {
-          this.data.servers = this.data.servers.map(s => sanitizeServerRecord(s));
-        }
-        console.log(`[DB] Loaded and sanitized ${this.data.servers.length} servers from ${DB_FILE}`);
-      } catch (err) {
-        console.error('[DB] Error loading database file, re-seeding...', err);
-        this.seedFromDefaultCsv();
-      }
-    } else {
-      console.log('[DB] Database file not found. Seeding initial data from CSV...');
-      this.seedFromDefaultCsv();
-    }
-
-    if (!Array.isArray(this.data.users)) this.data.users = [];
-    if (!Array.isArray(this.data.sessions)) this.data.sessions = [];
-    // Rename the old steward role for databases created before the role split.
-    for (const user of this.data.users) {
-      if ((user as { role?: string }).role === 'steward') user.role = 'manager';
-    }
-    this.ensureBootstrapAdmin();
-    this.pruneSessions();
-    this.save();
-  }
-
-  /** Creates the first administrator when the user table is empty (air-gapped bootstrap). */
-  ensureBootstrapAdmin() {
-    if (this.data.users.length > 0) return;
-
-    const email = normalizeEmail(process.env.cmdbUser);
-    const password = process.env.cmdbPass;
-    if (!email || !email.includes('@') || !password) {
-      throw new Error(
-        '[AUTH] No users exist and first-run bootstrap requires cmdbUser (a valid email) and cmdbPass environment variables.'
-      );
-    }
-
-    const now = new Date().toISOString();
-
-    this.data.users.push({
-      id: crypto.randomUUID(),
-      email,
-      name: process.env.cmdbName || 'CMDB Administrator',
-      role: 'admin',
-      password_hash: hashPassword(password),
-      active: true,
-      must_change_password: true,
-      created_at: now,
-      updated_at: now,
-    });
-
-    console.log(`[AUTH] Bootstrapped administrator: ${email}`);
-  }
-
-  pruneSessions() {
-    const now = Date.now();
-    this.data.sessions = (this.data.sessions || []).filter(
-      session => Date.parse(session.expires_at) > now
-    );
-  }
-
-  save() {
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('[DB] Failed to save database:', err);
-    }
-  }
-
-  logAudit(
-    user: string,
-    action: string,
-    entity_type: string,
-    entity_id: string,
-    prev?: any,
-    next?: any,
-    details?: string,
-    meta?: { actor_role?: UserRole; outcome?: 'success' | 'failure'; ip?: string; user_agent?: string }
-  ) {
-    const event: AuditLogEvent = {
+/** Audit writer kept in the old call signature; values are parameterised. */
+function logAudit(
+  user: string,
+  action: string,
+  entity_type: string,
+  entity_id: string,
+  prev?: any,
+  next?: any,
+  details?: string,
+  meta?: { actor_role?: UserRole; outcome?: 'success' | 'failure'; ip?: string; user_agent?: string }
+): void {
+  store.appendAudit(
+    {
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       user: user || 'system',
@@ -264,21 +171,18 @@ class Database {
       outcome: meta?.outcome ?? 'success',
       ip: meta?.ip,
       user_agent: meta?.user_agent,
-    };
-    this.data.audit_logs.unshift(event);
-    if (this.data.audit_logs.length > AUDIT_LOG_LIMIT) {
-      this.data.audit_logs = this.data.audit_logs.slice(0, AUDIT_LOG_LIMIT);
-    }
-    this.save();
-  }
+    },
+    AUDIT_LOG_LIMIT,
+  );
+}
 
-  seedFromDefaultCsv() {
-    let csvContent = '';
-    if (fs.existsSync(CSV_SOURCE_FILE)) {
-      csvContent = fs.readFileSync(CSV_SOURCE_FILE, 'utf-8');
-    } else {
-      // Fallback CSV text exactly matching supplied prompt
-      csvContent = `Host,VM,Support Team,Environment,Manager,Email,Customer,PowerState,DNS Name,Primary IP Address,EFI Secure boot,Annotation,1_BusinessUnit,2_SubBusinessUnit,4_Product,5_Function,6_Environmen,7_OrganisationShortCode,8_OrganisationAbbreviated,Datacenter,Network #1,Network #2,Network #3
+/** Rebuilds the demo dataset and writes it to the application database. */
+function seedFromDefaultCsv(): number {
+  let csvContent = '';
+  if (fs.existsSync(CSV_SOURCE_FILE)) {
+    csvContent = fs.readFileSync(CSV_SOURCE_FILE, 'utf-8');
+  } else {
+    csvContent = `Host,VM,Support Team,Environment,Manager,Email,Customer,PowerState,DNS Name,Primary IP Address,EFI Secure boot,Annotation,1_BusinessUnit,2_SubBusinessUnit,4_Product,5_Function,6_Environmen,7_OrganisationShortCode,8_OrganisationAbbreviated,Datacenter,Network #1,Network #2,Network #3
 br1-sse-esx-02.prd.local,br1-VM-SSS-1,UK,SSE,Mr Mine,mr.mime@pokemon.com,Central,poweredOn,ADC-BUILD-VM,172.29.100.115,TRUE,,CENTRAL,CST,Pulse VTM,TBA,,NECSWS,Central,UK1-SSE-DC1,WEB-DEPLOY-NET,CORP-DMZ-NET,
 br1-sse-esx-23.prd.local,br2-VM-SSS-2,UK,SPSE,John Lennon,John.Lennon@acme.com,BRICK,poweredOn,ah-p-dc01.ahnecsws.internal,10.200.68.91,TRUE,,Macs,Housing,NDM,Domain Controler,,BRK,BRICK,UK1-SSE-DC1,DC2-PROD-VLAN-4721,OPS-USER-ADMIN-ISOLATED,
 br1-sse-esx-23.prd.local,br1-VM-SSS-3,UK,SPSE,John Lennon,John.Lennon@acme.com,BRICK,poweredOn,AH-PRD-V-AD01.ANCH.CORP.ROOT.LOCAL,10.200.68.76,FALSE,,Macs,Housing,Housing,Active Directory,,BRK,BRICK,UK1-SSE-DC1,ADMIN-OPS-ISOLATED,LON-DC3-PROD-5824,
@@ -288,113 +192,109 @@ br1-sse-esx-23.prd.local,br1-VM-SSS-6,UK,SPSE,Leticia Camargo,Leticia.Camargo@mo
 br1-sse-esx-05.prd.local,br2-VM-SSS-7,UK,SPSE,Louver Call,Louver.call@humming.com,Brich Stone,poweredOn,AH-P-SQL01.ahnecsws.internal,152.114.120.6,TRUE,,Local Government,Housing,NDM,Database Server,,BS,Brich Stone,UK1-SSE-DC1,DC2-PROD-VLAN-4721,OPS-USER-ADMIN-ISOLATED,SECURE-BACKUP-NET
 br1-sse-esx-06.prd.local,br1-VM-SSS-8,UK,SPSE,Louver Call,Louver.call@humming.com,Brich Stone,poweredOn,AH-T-ENT01.ahnecsws.internal,152.114.114.216,TRUE,,Local Government,Housing,NDM,NDM Application Server,,BS,,UK1-SSE-DC1,DC2-PROD-VLAN-4721,OPS-USER-ADMIN-ISOLATED,
 br1-sse-esx-09.prd.local,br1-VM-SSS-9,UK,SPSE,Louver Call,Louver.call@humming.com,Ameriton,poweredOn,ANCH-VM-APP01,152.114.115.230,FALSE,,Local Government,Housing,Housing,ORDS Server,,AMT,Ameriton,UK1-SSE-DC1,ADMIN-OPS-ISOLATED,LON-DC3-PROD-5824,`;
-    }
-
-    const parsed = parseCsvToServers(csvContent);
-    this.data.servers = parsed;
-
-    // Seed sample incident & patch campaign for immediate realistic SOC demonstration
-    const sampleIncidentId = crypto.randomUUID();
-    const affectedServers = this.data.servers.slice(1, 4).map(s => s.id); // br1-sse-esx-23.prd.local hosts
-    
-    const initialHostDetails: Record<string, any> = {};
-    affectedServers.forEach((sid, idx) => {
-      initialHostDetails[sid] = {
-        server_id: sid,
-        status: idx === 0 ? 'Patching' : idx === 1 ? 'To be contacted' : 'Isolated',
-        patch_engineer: idx === 0 ? 'David Vance' : idx === 1 ? 'Sarah Jenkins' : 'Alex Mercer',
-        notes: idx === 0 ? 'Patch staging underway on hypervisor slice.' : idx === 1 ? 'Awaiting response from John Lennon regarding outage window.' : 'Temporarily isolated from network segment pending review.',
-        updated_at: new Date().toISOString(),
-      };
-    });
-
-    this.data.incidents = [
-      {
-        id: sampleIncidentId,
-        incident_reference: 'INC-2026-0842',
-        incident_title: 'Active Directory Kerberos Elevation Vulnerability (CVE-2026-3021)',
-        description: 'Investigation into unpatched domain controllers and hypervisors with secure boot disabled under BRICK/Macs and Local Government.',
-        severity: 'Critical',
-        date_detected: new Date(Date.now() - 86400000 * 2).toISOString(),
-        detection_source: 'Vulnerability Scanner / SIEM Alert',
-        ioc_or_vulnerability: 'CVE-2026-3021',
-        status: 'Investigating',
-        assigned_engineer: 'Sarah Jenkins (Senior SecOps)',
-        affected_server_ids: affectedServers,
-        host_details: initialHostDetails,
-        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-
-    const patchCampaignId = crypto.randomUUID();
-    const targets: Record<string, PatchTarget> = {};
-    this.data.servers.forEach((s, idx) => {
-      if (idx < 5) {
-        targets[s.id] = {
-          server_id: s.id,
-          status: idx === 0 ? 'Patched' : idx === 1 ? 'In progress' : idx === 2 ? 'Affected' : 'Scheduled',
-          notes: idx === 0 ? 'Applied firmware and ESX update' : 'Awaiting maintenance window with business unit manager',
-          scheduled_date: '2026-11-05',
-          patched_at: idx === 0 ? new Date().toISOString() : undefined,
-        };
-      }
-    });
-
-    this.data.patch_campaigns = [
-      {
-        id: patchCampaignId,
-        campaign_name: 'Q4 2026 Hypervisor & DC Security Hardening',
-        cve_identifier: 'CVE-2026-1944 / MS-PATCH-Q4',
-        patch_reference: 'KB-8899201',
-        description: 'Mandatory kernel patching and EFI secure boot compliance across UK1-SSE-DC1 infrastructure.',
-        severity: 'High',
-        start_date: '2026-10-15',
-        target_completion_date: '2026-11-20',
-        status: 'Active',
-        assigned_engineer: 'David Vance (Infra Sec)',
-        targets,
-        created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-
-    this.data.audit_logs = [
-      {
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        user: 'System Provisioner',
-        action: 'INITIAL_IMPORT',
-        entity_type: 'INVENTORY',
-        entity_id: 'ALL',
-        details: `Imported initial inventory of ${this.data.servers.length} server records from CSM dataset`,
-      },
-    ];
-
-    this.data.import_history = [
-      {
-        id: crypto.randomUUID(),
-        filename: 'MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv',
-        import_date: new Date().toISOString(),
-        user: 'System Provisioner',
-        strategy: 'insert',
-        total_records: this.data.servers.length,
-        new_records: this.data.servers.length,
-        updated_records: 0,
-        unchanged_records: 0,
-        duplicate_records: 0,
-        failed_records: 0,
-        status: 'Completed',
-      },
-    ];
-
-    this.save();
-    console.log(`[DB] Seeded ${this.data.servers.length} server records.`);
   }
+
+  const servers = parseCsvToServers(csvContent);
+
+  const sampleIncidentId = crypto.randomUUID();
+  const affectedServers = servers.slice(1, 4).map(s => s.id);
+  const initialHostDetails: Record<string, any> = {};
+  affectedServers.forEach((sid, idx) => {
+    initialHostDetails[sid] = {
+      server_id: sid,
+      status: idx === 0 ? 'Patching' : idx === 1 ? 'To be contacted' : 'Isolated',
+      patch_engineer: idx === 0 ? 'David Vance' : idx === 1 ? 'Sarah Jenkins' : 'Alex Mercer',
+      notes: idx === 0 ? 'Patch staging underway on hypervisor slice.' : idx === 1 ? 'Awaiting response from John Lennon regarding outage window.' : 'Temporarily isolated from network segment pending review.',
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  const incidents = [
+    {
+      id: sampleIncidentId,
+      incident_reference: 'INC-2026-0842',
+      incident_title: 'Active Directory Kerberos Elevation Vulnerability (CVE-2026-3021)',
+      description: 'Investigation into unpatched domain controllers and hypervisors with secure boot disabled under BRICK/Macs and Local Government.',
+      severity: 'Critical',
+      date_detected: new Date(Date.now() - 86400000 * 2).toISOString(),
+      detection_source: 'Vulnerability Scanner / SIEM Alert',
+      ioc_or_vulnerability: 'CVE-2026-3021',
+      status: 'Investigating',
+      assigned_engineer: 'Sarah Jenkins (Senior SecOps)',
+      affected_server_ids: affectedServers,
+      host_details: initialHostDetails,
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ];
+
+  const patchCampaignId = crypto.randomUUID();
+  const targets: Record<string, PatchTarget> = {};
+  servers.forEach((s, idx) => {
+    if (idx < 5) {
+      targets[s.id] = {
+        server_id: s.id,
+        status: idx === 0 ? 'Patched' : idx === 1 ? 'In progress' : idx === 2 ? 'Affected' : 'Scheduled',
+        notes: idx === 0 ? 'Applied firmware and ESX update' : 'Awaiting maintenance window with business unit manager',
+        scheduled_date: '2026-11-05',
+        patched_at: idx === 0 ? new Date().toISOString() : undefined,
+      };
+    }
+  });
+
+  const patch_campaigns = [
+    {
+      id: patchCampaignId,
+      campaign_name: 'Q4 2026 Hypervisor & DC Security Hardening',
+      cve_identifier: 'CVE-2026-1944 / MS-PATCH-Q4',
+      patch_reference: 'KB-8899201',
+      description: 'Mandatory kernel patching and EFI secure boot compliance across UK1-SSE-DC1 infrastructure.',
+      severity: 'High',
+      start_date: '2026-10-15',
+      target_completion_date: '2026-11-20',
+      status: 'Active',
+      assigned_engineer: 'David Vance (Infra Sec)',
+      targets,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ];
+
+  const audit_logs = [
+    {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      user: 'System Provisioner',
+      action: 'INITIAL_IMPORT',
+      entity_type: 'INVENTORY',
+      entity_id: 'ALL',
+      details: `Imported initial inventory of ${servers.length} server records from CSM dataset`,
+    },
+  ];
+
+  const import_history = [
+    {
+      id: crypto.randomUUID(),
+      filename: 'MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv',
+      import_date: new Date().toISOString(),
+      user: 'System Provisioner',
+      strategy: 'insert',
+      total_records: servers.length,
+      new_records: servers.length,
+      updated_records: 0,
+      unchanged_records: 0,
+      duplicate_records: 0,
+      failed_records: 0,
+      status: 'Completed',
+    },
+  ];
+
+  store.seedApp({ servers, incidents, patch_campaigns, audit_logs, import_history });
+  console.log(`[DB] Seeded ${servers.length} server records.`);
+  return servers.length;
 }
 
-export const db = new Database();
-db.init();
+
 
 // CSV Parser Helper with support for quoted strings and clean mapping
 export function parseCsvToServers(csvText: string): ServerRecord[] {
@@ -497,6 +397,9 @@ function parseCsvLine(line: string): string[] {
 
 // REST API SETUP
 async function startServer() {
+  store.init();
+  // Fresh install (no legacy JSON and empty SQLite) seeds the demo dataset.
+  if (db.serverCount() === 0) seedFromDefaultCsv();
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -603,16 +506,16 @@ async function startServer() {
     }
     const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (!sessionId) return undefined;
-    const session = db.data.sessions.find(item => item.id === sessionId);
+    const session = db.findSession(sessionId);
     if (!session || Date.parse(session.expires_at) <= Date.now()) return undefined;
-    const user = db.data.users.find(item => item.id === session.user_id && item.active);
-    return user ? sanitizeUser(user) : undefined;
+    const user = db.findUser(session.user_id);
+    return user && user.active ? sanitizeUser(user) : undefined;
   };
 
   const createSession = (user: UserRecord, req: Request): string => {
     const id = crypto.randomBytes(32).toString('base64url');
     const now = Date.now();
-    db.data.sessions.push({
+    db.insertSession({
       id,
       user_id: user.id,
       created_at: new Date(now).toISOString(),
@@ -629,7 +532,7 @@ async function startServer() {
     const now = Date.now();
     const attempt = loginAttempts.get(email);
     if (attempt && attempt.lockedUntil > now) {
-      db.logAudit(
+      logAudit(
         email || 'unknown',
         'LOGIN_LOCKED',
         'AUTH',
@@ -646,7 +549,7 @@ async function startServer() {
     }
     const previousFailures = attempt && attempt.lockedUntil === 0 ? attempt.count : 0;
 
-    const user = db.data.users.find(item => item.email === email);
+    const user = db.findUserByEmail(email);
     if (!user || !user.active || !verifyPassword(password, user.password_hash)) {
       const next = { count: previousFailures + 1, lockedUntil: 0 };
       if (next.count >= MAX_LOGIN_ATTEMPTS) next.lockedUntil = now + LOCKOUT_MS;
@@ -656,7 +559,7 @@ async function startServer() {
           if (value.lockedUntil > 0 && value.lockedUntil <= now) loginAttempts.delete(key);
         }
       }
-      db.logAudit(
+      logAudit(
         email || 'unknown',
         'LOGIN_FAILED',
         'AUTH',
@@ -670,12 +573,11 @@ async function startServer() {
     }
 
     loginAttempts.delete(email);
-    user.last_login_at = new Date().toISOString();
-    user.updated_at = user.last_login_at;
+    const loginAt = new Date().toISOString();
+    db.setUserLastLogin(user.id, loginAt);
     db.pruneSessions();
     const sessionId = createSession(user, req);
-    db.save();
-    db.logAudit(
+    logAudit(
       user.email,
       'LOGIN_SUCCESS',
       'AUTH',
@@ -691,13 +593,12 @@ async function startServer() {
 
   app.post('/auth/logout', (req: Request, res: Response) => {
     const sessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
-    const session = db.data.sessions.find(item => item.id === sessionId);
+    const session = db.findSession(sessionId);
     if (session) {
-      const user = db.data.users.find(item => item.id === session.user_id);
-      db.data.sessions = db.data.sessions.filter(item => item.id !== sessionId);
-      db.save();
+      const user = db.findUser(session.user_id);
+      db.deleteSession(sessionId);
       if (user) {
-        db.logAudit(
+        logAudit(
           user.email,
           'LOGOUT',
           'AUTH',
@@ -727,7 +628,7 @@ async function startServer() {
     const required = requiredRolesFor(req.method, req.originalUrl.split('?')[0]);
     if (!required || required.includes(user.role)) return next();
 
-    db.logAudit(
+    logAudit(
       user.email,
       'ACCESS_DENIED',
       'API',
@@ -762,7 +663,7 @@ async function startServer() {
   });
 
   api.post('/me/password', (req: Request, res: Response) => {
-    const record = db.data.users.find(item => item.id === req.user!.id);
+    const record = db.findUser(req.user!.id);
     if (!record) return res.status(404).json({ error: 'User not found.' });
 
     const currentPassword = String(req.body?.current_password ?? '');
@@ -773,15 +674,10 @@ async function startServer() {
     const policyError = validatePassword(newPassword, record.email);
     if (policyError) return res.status(400).json({ error: policyError });
 
-    record.password_hash = hashPassword(newPassword);
-    record.must_change_password = false;
-    record.updated_at = new Date().toISOString();
     const currentSessionId = parseCookies(req.headers.cookie)[SESSION_COOKIE];
-    db.data.sessions = db.data.sessions.filter(
-      session => session.user_id !== record.id || session.id === currentSessionId
-    );
-    db.save();
-    db.logAudit(
+    db.setUserPassword(record.id, hashPassword(newPassword), false);
+    db.deleteSessionsForUserExcept(record.id, currentSessionId);
+    logAudit(
       record.email,
       'PASSWORD_CHANGED',
       'AUTH',
@@ -797,9 +693,7 @@ async function startServer() {
   // Directory for assignment pickers and the admin user screen.
   api.get('/users', (req: Request, res: Response) => {
     const includeInactive = req.query.all === '1' && req.user!.role === 'admin';
-    const users = db.data.users
-      .filter(user => includeInactive || user.active)
-      .map(sanitizeUser);
+    const users = db.listUsers(includeInactive).map(sanitizeUser);
     res.json(users);
   });
 
@@ -810,7 +704,7 @@ async function startServer() {
     const password = String(req.body?.password ?? '');
     if (!email.includes('@')) return res.status(400).json({ error: 'A valid email is required.' });
     if (!isRole(role)) return res.status(400).json({ error: 'Role must be viewer, analyst, manager or admin.' });
-    if (db.data.users.some(user => user.email === email)) {
+    if (db.findUserByEmail(email)) {
       return res.status(409).json({ error: 'A user with that email already exists.' });
     }
     const policyError = validatePassword(password, email);
@@ -828,9 +722,8 @@ async function startServer() {
       created_at: now,
       updated_at: now,
     };
-    db.data.users.push(user);
-    db.save();
-    db.logAudit(
+    db.insertUser(user);
+    logAudit(
       req.user!.email,
       'USER_CREATED',
       'USER',
@@ -844,7 +737,7 @@ async function startServer() {
   });
 
   api.patch('/users/:id', (req: Request, res: Response) => {
-    const user = db.data.users.find(item => item.id === req.params.id);
+    const user = db.findUser(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     const nextRole = req.body?.role;
@@ -855,7 +748,7 @@ async function startServer() {
     const demotingLastAdmin =
       user.role === 'admin' &&
       (nextRole !== undefined && nextRole !== 'admin' || nextActive === false) &&
-      db.data.users.filter(item => item.active && item.role === 'admin').length <= 1;
+      db.countActiveAdmins() <= 1;
     if (demotingLastAdmin) {
       return res.status(400).json({ error: 'The last active administrator cannot be demoted or disabled.' });
     }
@@ -864,40 +757,36 @@ async function startServer() {
     }
 
     const before = sanitizeUser(user);
-    if (req.body?.name !== undefined) user.name = cleanString(req.body.name) || user.name;
-    if (nextRole !== undefined) user.role = nextRole;
-    if (nextActive !== undefined) user.active = Boolean(nextActive);
-    user.updated_at = new Date().toISOString();
-    if (!user.active) {
-      db.data.sessions = db.data.sessions.filter(session => session.user_id !== user.id);
-    }
-    db.save();
-    db.logAudit(
+    const fields: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (req.body?.name !== undefined) fields.name = cleanString(req.body.name) || user.name;
+    if (nextRole !== undefined) fields.role = nextRole;
+    if (nextActive !== undefined) fields.active = Boolean(nextActive);
+    db.updateUser(user.id, fields);
+    if (fields.active === false) db.deleteSessionsForUser(user.id);
+    const updatedUser = { ...user, ...fields };
+    logAudit(
       req.user!.email,
       'USER_UPDATED',
       'USER',
       user.id,
       before,
-      sanitizeUser(user),
+      sanitizeUser(updatedUser),
       `Updated user ${user.email}`,
       auditMeta(req, req.user!.role)
     );
-    res.json(sanitizeUser(user));
+    res.json(sanitizeUser(updatedUser));
   });
 
   api.post('/users/:id/reset-password', (req: Request, res: Response) => {
-    const user = db.data.users.find(item => item.id === req.params.id);
+    const user = db.findUser(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found.' });
     const password = String(req.body?.password ?? '');
     const policyError = validatePassword(password, user.email);
     if (policyError) return res.status(400).json({ error: policyError });
 
-    user.password_hash = hashPassword(password);
-    user.must_change_password = true;
-    user.updated_at = new Date().toISOString();
-    db.data.sessions = db.data.sessions.filter(session => session.user_id !== user.id);
-    db.save();
-    db.logAudit(
+    db.setUserPassword(user.id, hashPassword(password), true);
+    db.deleteSessionsForUser(user.id);
+    logAudit(
       req.user!.email,
       'PASSWORD_RESET',
       'USER',
@@ -912,7 +801,7 @@ async function startServer() {
 
   // 1. STATS / DASHBOARD METRICS (dynamically calculated)
   api.get('/stats', (req: Request, res: Response) => {
-    const servers = db.data.servers;
+    const servers = db.allServers();
     const total = servers.length;
     const poweredOn = servers.filter(s => (s.power_state || '').toLowerCase() === 'poweredon').length;
     const poweredOff = total - poweredOn;
@@ -980,7 +869,7 @@ async function startServer() {
 
   // 2. SERVERS LIST & FILTERING
   api.get('/servers', (req: Request, res: Response) => {
-    let list = [...db.data.servers];
+    let list = db.allServers();
 
     const {
       business_unit,
@@ -1135,7 +1024,7 @@ async function startServer() {
       return res.json([]);
     }
 
-    const matches = db.data.servers.filter(server =>
+    const matches = db.allServers().filter(server =>
       matchesServerSearch(server, q, SERVER_GLOBAL_SEARCH_FIELDS)
     );
 
@@ -1160,18 +1049,18 @@ async function startServer() {
 
   // 4. SERVER DETAILS + RELATIONSHIPS + AUDIT
   api.get('/servers/:id', (req: Request, res: Response) => {
-    const server = db.data.servers.find(s => s.id === req.params.id);
+    const server = db.findServer(req.params.id);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
     // Find correlated infrastructure entities
-    const sameHostServers = db.data.servers
+    const sameHostServers = db.allServers()
       .filter(s => s.id !== server.id && s.host && s.host.toLowerCase() === server.host.toLowerCase())
       .map(s => ({ id: s.id, vm: s.vm, ip: s.primary_ip_address, bu: s.business_unit }));
 
     const serverNetworks = [server.network_1, server.network_2, server.network_3].filter(Boolean);
-    const sameNetworkServers = db.data.servers
+    const sameNetworkServers = db.allServers()
       .filter(s => {
         if (s.id === server.id) return false;
         const nets = [s.network_1, s.network_2, s.network_3].filter(Boolean);
@@ -1179,14 +1068,14 @@ async function startServer() {
       })
       .map(s => ({ id: s.id, host: s.host, vm: s.vm, ip: s.primary_ip_address, bu: s.business_unit }));
 
-    const sameManagerServers = db.data.servers
+    const sameManagerServers = db.allServers()
       .filter(s => s.id !== server.id && s.manager && s.manager.toLowerCase() === server.manager.toLowerCase())
       .map(s => ({ id: s.id, host: s.host, vm: s.vm, bu: s.business_unit }));
 
     const history =
       req.user?.role === 'viewer'
         ? []
-        : db.data.audit_logs.filter(
+        : db.allAudit().filter(
             l => l.entity_id === server.id || (l.details && l.details.includes(server.host))
           );
 
@@ -1215,19 +1104,17 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     });
 
-    db.data.servers.unshift(newServer);
-    db.save();
-    db.logAudit(req.user?.email || body.updated_by || 'system', 'CREATE_SERVER', 'SERVER', newServer.id, null, newServer, `Created server ${newServer.host} (${newServer.vm})`);
+    db.insertServer(newServer);
+    logAudit(req.user?.email || body.updated_by || 'system', 'CREATE_SERVER', 'SERVER', newServer.id, null, newServer, `Created server ${newServer.host} (${newServer.vm})`);
     res.status(201).json(newServer);
   });
 
   api.put('/servers/:id', (req: Request, res: Response) => {
-    const idx = db.data.servers.findIndex(s => s.id === req.params.id);
-    if (idx === -1) {
+    const prev = db.findServer(req.params.id);
+    if (!prev) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const prev = db.data.servers[idx];
     const updated = sanitizeServerRecord({
       ...prev,
       ...req.body,
@@ -1235,25 +1122,24 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     });
 
-    db.data.servers[idx] = updated;
-    db.save();
-    db.logAudit(req.user?.email || req.body.updated_by || 'system', 'UPDATE_SERVER', 'SERVER', updated.id, prev, updated, `Updated attributes for ${updated.host}`);
+    db.updateServer(prev.id, updated);
+    logAudit(req.user?.email || req.body.updated_by || 'system', 'UPDATE_SERVER', 'SERVER', updated.id, prev, updated, `Updated attributes for ${updated.host}`);
     res.json(updated);
   });
 
   api.delete('/servers/:id', (req: Request, res: Response) => {
-    const idx = db.data.servers.findIndex(s => s.id === req.params.id);
-    if (idx === -1) {
+    const removed = db.findServer(req.params.id);
+    if (!removed) {
       return res.status(404).json({ error: 'Server not found' });
     }
-    const removed = db.data.servers.splice(idx, 1)[0];
-    db.logAudit(req.user?.email ?? 'system', 'DELETE_SERVER', 'SERVER', removed.id, removed, null, `Deleted server ${removed.host}`);
+    db.deleteServer(removed.id);
+    logAudit(req.user?.email ?? 'system', 'DELETE_SERVER', 'SERVER', removed.id, removed, null, `Deleted server ${removed.host}`);
     res.json({ success: true, removed });
   });
 
   // 6. BUSINESS UNITS EXPLORER & RELATIONSHIPS (Section 9)
   api.get('/business-units', (req: Request, res: Response) => {
-    const servers = db.data.servers;
+    const servers = db.allServers();
     const buMap = new Map<string, {
       name: string;
       organisation_short_code: string;
@@ -1319,7 +1205,7 @@ async function startServer() {
 
   api.get('/business-units/:name', (req: Request, res: Response) => {
     const buName = req.params.name;
-    const servers = db.data.servers.filter(
+    const servers = db.allServers().filter(
       s => (s.business_unit || '').toLowerCase() === buName.toLowerCase()
     );
 
@@ -1369,7 +1255,7 @@ async function startServer() {
 
   // 6.1 PRODUCTS DIRECTORY (4_Product breakdown)
   api.get('/products', (req: Request, res: Response) => {
-    const servers = db.data.servers;
+    const servers = db.allServers();
     const map = new Map<string, {
       name: string;
       total_servers: number;
@@ -1484,7 +1370,7 @@ async function startServer() {
       support_teams: Set<string>;
     }>();
 
-    db.data.servers.forEach(s => {
+    db.allServers().forEach(s => {
       const mgr = s.manager || 'Unassigned';
       if (!map.has(mgr)) {
         map.set(mgr, {
@@ -1518,7 +1404,7 @@ async function startServer() {
 
   api.get('/managers/:name/servers', (req: Request, res: Response) => {
     const mgrName = req.params.name;
-    const servers = db.data.servers.filter(
+    const servers = db.allServers().filter(
       s => (s.manager || '').toLowerCase() === mgrName.toLowerCase()
     );
     res.json(servers);
@@ -1534,7 +1420,7 @@ async function startServer() {
       hosts: Set<string>;
     }>();
 
-    db.data.servers.forEach(s => {
+    db.allServers().forEach(s => {
       const nets = [s.network_1, s.network_2, s.network_3].filter(Boolean);
       nets.forEach(n => {
         if (!map.has(n)) {
@@ -1567,7 +1453,7 @@ async function startServer() {
 
   api.get('/networks/:name/servers', (req: Request, res: Response) => {
     const netName = req.params.name.toLowerCase();
-    const servers = db.data.servers.filter(
+    const servers = db.allServers().filter(
       s =>
         (s.network_1 || '').toLowerCase() === netName ||
         (s.network_2 || '').toLowerCase() === netName ||
@@ -1584,7 +1470,7 @@ async function startServer() {
       hypervisors: Map<string, { host: string; vm_count: number; vms: string[] }>;
     }>();
 
-    db.data.servers.forEach(s => {
+    db.allServers().forEach(s => {
       const dc = s.datacenter || 'Unknown';
       if (!map.has(dc)) {
         map.set(dc, { name: dc, server_count: 0, hypervisors: new Map() });
@@ -1613,7 +1499,7 @@ async function startServer() {
 
   // 10. INCIDENT TRIAGE WORKSPACE (Section 12)
   api.get('/incidents', (req: Request, res: Response) => {
-    res.json(db.data.incidents);
+    res.json(db.allIncidents());
   });
 
   api.post('/incidents', (req: Request, res: Response) => {
@@ -1623,7 +1509,7 @@ async function startServer() {
     }
 
     const requestedIds: unknown[] = Array.isArray(body.affected_server_ids) ? body.affected_server_ids : [];
-    const existingServerIds = new Set(db.data.servers.map(s => s.id));
+    const existingServerIds = new Set(db.allServers().map(s => s.id));
     const affectedIds = new Set<string>(
       requestedIds.filter(
         (id): id is string => typeof id === 'string' && existingServerIds.has(id),
@@ -1632,7 +1518,7 @@ async function startServer() {
     if (body.raw_input && typeof body.raw_input === 'string') {
       const tokens = body.raw_input.split(/[\r\n,;\s]+/).map((t: string) => t.trim().toLowerCase()).filter(Boolean);
       tokens.forEach((token: string) => {
-        const found = db.data.servers.filter(
+        const found = db.allServers().filter(
           s =>
             (s.host || '').toLowerCase() === token ||
             (s.vm || '').toLowerCase() === token ||
@@ -1670,22 +1556,21 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     };
 
-    db.data.incidents.unshift(newInc);
-    db.logAudit(req.user?.email || body.user || 'system', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference} with ${newInc.affected_server_ids.length} host(s)`);
+    db.insertIncident(newInc);
+    logAudit(req.user?.email || body.user || 'system', 'CREATE_INCIDENT', 'INCIDENT', newInc.id, null, newInc, `Created incident ${newInc.incident_reference} with ${newInc.affected_server_ids.length} host(s)`);
     res.status(201).json(newInc);
   });
 
   api.get('/incidents/:id', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
+    const inc = db.findIncident(req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
     res.json(inc);
   });
 
   api.put('/incidents/:id', (req: Request, res: Response) => {
-    const idx = db.data.incidents.findIndex(i => i.id === req.params.id || i.incident_reference === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Incident not found' });
+    const prev = db.findIncident(req.params.id);
+    if (!prev) return res.status(404).json({ error: 'Incident not found' });
 
-    const prev = db.data.incidents[idx];
     const updated = {
       ...prev,
       ...req.body,
@@ -1693,53 +1578,52 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     };
 
-    db.data.incidents[idx] = updated;
-    db.logAudit(req.user?.email ?? 'system', 'UPDATE_INCIDENT', 'INCIDENT', updated.id, prev, updated, `Updated ${updated.incident_reference}`);
+    db.updateIncident(prev.id, updated);
+    logAudit(req.user?.email ?? 'system', 'UPDATE_INCIDENT', 'INCIDENT', updated.id, prev, updated, `Updated ${updated.incident_reference}`);
     res.json(updated);
   });
 
   // Update one host's triage state inside an incident (single canonical handler)
   api.put('/incidents/:id/hosts/:serverId', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
+    const inc = db.findIncident(req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
     const serverId = req.params.serverId;
-    inc.host_details = inc.host_details || {};
-    const before = inc.host_details[serverId] ? { ...inc.host_details[serverId] } : null;
-    inc.host_details[serverId] = {
-      ...(inc.host_details[serverId] || { server_id: serverId, status: 'To be contacted', notes: '' }),
+    const before = inc.host_details?.[serverId] ? { ...inc.host_details[serverId] } : null;
+    const detail = {
+      ...(inc.host_details?.[serverId] || { server_id: serverId, status: 'To be contacted', notes: '' }),
       ...req.body,
       server_id: serverId,
       updated_by: req.user?.email,
       updated_at: new Date().toISOString(),
     };
-    inc.updated_at = new Date().toISOString();
-    db.save();
-    db.logAudit(
+    db.upsertIncidentHost(inc.id, serverId, detail);
+    db.touchIncident(inc.id, new Date().toISOString());
+    logAudit(
       req.user?.email ?? 'system',
       'UPDATE_INCIDENT_HOST',
       'INCIDENT',
       inc.id,
       before,
-      inc.host_details[serverId],
+      detail,
       `Updated host ${serverId} in ${inc.incident_reference}`,
       auditMeta(req, req.user?.role)
     );
-    res.json(inc.host_details[serverId]);
+    res.json(detail);
   });
 
   // Batch Add Affected Servers by hostnames, IPs, or IDs (Section 12.2: Reports matched and unmatched!)
   api.post('/incidents/:id/servers', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
+    const inc = db.findIncident(req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
 
     const { raw_input, server_ids } = req.body;
-    const currentIds = new Set(inc.affected_server_ids);
+    const currentIds = new Set<string>(inc.affected_server_ids as string[]);
     const matchedServers: ServerRecord[] = [];
     const unmatchedEntries: string[] = [];
 
     if (Array.isArray(server_ids)) {
       server_ids.forEach(id => {
-        const found = db.data.servers.find(s => s.id === id);
+        const found = db.findServer(id);
         if (found) {
           currentIds.add(found.id);
           matchedServers.push(found);
@@ -1759,7 +1643,7 @@ async function startServer() {
       tokens.forEach(token => {
         const tLower = token.toLowerCase();
         // Match against host, vm, primary_ip_address, dns_name
-        const found = db.data.servers.filter(
+        const found = db.allServers().filter(
           s =>
             (s.host || '').toLowerCase() === tLower ||
             (s.vm || '').toLowerCase() === tLower ||
@@ -1778,15 +1662,17 @@ async function startServer() {
       });
     }
 
-    inc.affected_server_ids = Array.from(currentIds);
-    inc.updated_at = new Date().toISOString();
-    db.save();
+    for (const id of currentIds) {
+      db.upsertIncidentHost(inc.id, id, { server_id: id });
+    }
+    db.touchIncident(inc.id, new Date().toISOString());
+    const affectedIds = Array.from(currentIds);
 
-    db.logAudit(req.user?.email ?? 'system', 'ADD_INCIDENT_SERVERS', 'INCIDENT', inc.id, null, null, `Added ${matchedServers.length} affected servers to ${inc.incident_reference}`);
+    logAudit(req.user?.email ?? 'system', 'ADD_INCIDENT_SERVERS', 'INCIDENT', inc.id, null, null, `Added ${matchedServers.length} affected servers to ${inc.incident_reference}`);
 
     res.json({
-      incident: inc,
-      total_affected: inc.affected_server_ids.length,
+      incident: { ...inc, affected_server_ids: affectedIds },
+      total_affected: affectedIds.length,
       matched_count: matchedServers.length,
       unmatched_count: unmatchedEntries.length,
       matched_servers: matchedServers,
@@ -1796,27 +1682,23 @@ async function startServer() {
 
   // Remove host from incident
   api.delete('/incidents/:id/servers/:serverId', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id || i.incident_reference === req.params.id);
+    const inc = db.findIncident(req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
 
     const serverId = req.params.serverId;
-    inc.affected_server_ids = inc.affected_server_ids.filter(id => id !== serverId);
-    if (inc.host_details && inc.host_details[serverId]) {
-      delete inc.host_details[serverId];
-    }
-    inc.updated_at = new Date().toISOString();
-    db.save();
-    db.logAudit(req.user?.email ?? 'system', 'REMOVE_INCIDENT_SERVER', 'INCIDENT', inc.id, null, null, `Removed server ${serverId} from ${inc.incident_reference}`);
+    db.deleteIncidentHost(inc.id, serverId);
+    db.touchIncident(inc.id, new Date().toISOString());
+    logAudit(req.user?.email ?? 'system', 'REMOVE_INCIDENT_SERVER', 'INCIDENT', inc.id, null, null, `Removed server ${serverId} from ${inc.incident_reference}`);
 
-    res.json({ success: true, remaining: inc.affected_server_ids.length });
+    res.json({ success: true, remaining: (inc.affected_server_ids as string[]).filter(id => id !== serverId).length });
   });
 
   // Calculate Impact & Correlation Leads (Section 12.3 & 12.4)
   api.get('/incidents/:id/impact', (req: Request, res: Response) => {
-    const inc = db.data.incidents.find(i => i.id === req.params.id);
+    const inc = db.findIncident(req.params.id);
     if (!inc) return res.status(404).json({ error: 'Incident not found' });
 
-    const affected = db.data.servers.filter(s => inc.affected_server_ids.includes(s.id));
+    const affected = db.allServers().filter(s => inc.affected_server_ids.includes(s.id));
 
     const buSet = new Set<string>();
     const subBuSet = new Set<string>();
@@ -1925,7 +1807,7 @@ async function startServer() {
 
   // 11. PATCHING & VULNERABILITY MANAGEMENT (Section 13)
   api.get('/patching/campaigns', (req: Request, res: Response) => {
-    res.json(db.data.patch_campaigns);
+    res.json(db.allCampaigns());
   });
 
   api.post('/patching/campaigns', (req: Request, res: Response) => {
@@ -1959,18 +1841,19 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     };
 
-    db.data.patch_campaigns.unshift(campaign);
-    db.logAudit(req.user?.email || body.user || 'system', 'CREATE_CAMPAIGN', 'CAMPAIGN', campaign.id, null, campaign, `Created patch campaign ${campaign.campaign_name}`);
+    db.insertCampaign(campaign);
+    logAudit(req.user?.email || body.user || 'system', 'CREATE_CAMPAIGN', 'CAMPAIGN', campaign.id, null, campaign, `Created patch campaign ${campaign.campaign_name}`);
     res.status(201).json(campaign);
   });
 
   api.get('/patching/campaigns/:id', (req: Request, res: Response) => {
-    const campaign = db.data.patch_campaigns.find(c => c.id === req.params.id);
+    const campaign = db.findCampaign(req.params.id);
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
     // Join target server records
-    const targetList = Object.entries(campaign.targets).map(([serverId, target]) => {
-      const server = db.data.servers.find(s => s.id === serverId);
+    const targets: Record<string, any> = campaign.targets ?? {};
+    const targetList = Object.entries(targets).map(([serverId, target]) => {
+      const server = db.findServer(serverId);
       return {
         ...target,
         server,
@@ -1978,10 +1861,10 @@ async function startServer() {
     });
 
     // Compute progress stats
-    const totalTargets = Object.keys(campaign.targets).length;
-    const patchedCount = Object.values(campaign.targets).filter(t => t.status === 'Patched' || t.status === 'Validated').length;
-    const pendingCount = Object.values(campaign.targets).filter(t => t.status !== 'Patched' && t.status !== 'Validated' && t.status !== 'Not affected' && t.status !== 'Exception granted').length;
-    const validationRequired = Object.values(campaign.targets).filter(t => t.status === 'Validation required').length;
+    const totalTargets = Object.keys(targets).length;
+    const patchedCount = Object.values(targets).filter(t => t.status === 'Patched' || t.status === 'Validated').length;
+    const pendingCount = Object.values(targets).filter(t => t.status !== 'Patched' && t.status !== 'Validated' && t.status !== 'Not affected' && t.status !== 'Exception granted').length;
+    const validationRequired = Object.values(targets).filter(t => t.status === 'Validation required').length;
 
     res.json({
       ...campaign,
@@ -1997,10 +1880,9 @@ async function startServer() {
   });
 
   api.put('/patching/campaigns/:id', (req: Request, res: Response) => {
-    const idx = db.data.patch_campaigns.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
+    const prev = db.findCampaign(req.params.id);
+    if (!prev) return res.status(404).json({ error: 'Campaign not found' });
 
-    const prev = db.data.patch_campaigns[idx];
     const updated = {
       ...prev,
       ...req.body,
@@ -2008,29 +1890,28 @@ async function startServer() {
       updated_at: new Date().toISOString(),
     };
 
-    db.data.patch_campaigns[idx] = updated;
-    db.save();
+    db.updateCampaign(prev.id, updated);
     res.json(updated);
   });
 
   api.put('/patching/campaigns/:id/servers/:serverId', (req: Request, res: Response) => {
-    const campaign = db.data.patch_campaigns.find(c => c.id === req.params.id);
+    const campaign = db.findCampaign(req.params.id);
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
     const serverId = req.params.serverId;
     const prevTarget = campaign.targets[serverId] || { server_id: serverId, status: 'Not assessed', notes: '' };
 
-    campaign.targets[serverId] = {
+    const target = {
       ...prevTarget,
       ...req.body,
       server_id: serverId,
       patched_at: req.body.status === 'Patched' ? (prevTarget.patched_at || new Date().toISOString()) : prevTarget.patched_at,
     };
-    campaign.updated_at = new Date().toISOString();
-    db.save();
+    db.upsertCampaignTarget(campaign.id, serverId, target);
+    db.touchCampaign(campaign.id, new Date().toISOString());
 
-    db.logAudit(req.user?.email ?? 'system', 'UPDATE_PATCH_STATUS', 'CAMPAIGN', campaign.id, prevTarget, campaign.targets[serverId], `Updated server ${serverId} status to ${req.body.status}`);
-    res.json(campaign.targets[serverId]);
+    logAudit(req.user?.email ?? 'system', 'UPDATE_PATCH_STATUS', 'CAMPAIGN', campaign.id, prevTarget, target, `Updated server ${serverId} status to ${req.body.status}`);
+    res.json(target);
   });
 
   /**
@@ -2061,9 +1942,9 @@ async function startServer() {
 
     let selectedServers: ServerRecord[] = [];
     if (Array.isArray(server_ids) && server_ids.length > 0) {
-      selectedServers = db.data.servers.filter(s => server_ids.includes(s.id));
+      selectedServers = db.allServers().filter(s => server_ids.includes(s.id));
     } else {
-      selectedServers = db.data.servers;
+      selectedServers = db.allServers();
     }
 
     // Deduplicate contacts by email
@@ -2241,7 +2122,7 @@ async function startServer() {
     const previewRows = parsedRows.slice(0, 20);
 
     // Validation checks for preview (Section 4.1 Stage 3)
-    const existingHosts = new Set(db.data.servers.map(s => (s.host || '').toLowerCase()));
+    const existingHosts = new Set(db.allServers().map(s => (s.host || '').toLowerCase()));
     const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
 
     const rowValidations = previewRows.map((row, index) => {
@@ -2282,77 +2163,66 @@ async function startServer() {
     let failedCount = 0;
     const errors: any[] = [];
 
-    const existingHostMap = new Map<string, number>();
-    db.data.servers.forEach((s, idx) => {
-      existingHostMap.set(`${s.host.toLowerCase()}::${s.vm.toLowerCase()}`, idx);
-    });
+    const existing = new Map<string, any>();
+    for (const srv of db.allServers()) {
+      existing.set(`${srv.host.toLowerCase()}::${srv.vm.toLowerCase()}`, srv);
+    }
 
     const processedKeys = new Set<string>();
 
-    incoming.forEach((row, i) => {
-      if (!row.host || !row.vm) {
-        failedCount++;
-        errors.push({ row: i + 1, field: 'host/vm', message: 'Host and VM identifiers are mandatory', raw_data: row });
-        return;
-      }
+    db.transaction(() => {
+      incoming.forEach((row, i) => {
+        if (!row.host || !row.vm) {
+          failedCount++;
+          errors.push({ row: i + 1, field: 'host/vm', message: 'Host and VM identifiers are mandatory', raw_data: row });
+          return;
+        }
 
-      const key = `${row.host.toLowerCase()}::${row.vm.toLowerCase()}`;
-      if (processedKeys.has(key)) {
-        duplicateCount++;
-      }
-      processedKeys.add(key);
-
-      const existingIndex = existingHostMap.get(key);
-
-      if (strategy === 'insert') {
-        if (existingIndex !== undefined) {
+        const key = `${row.host.toLowerCase()}::${row.vm.toLowerCase()}`;
+        if (processedKeys.has(key)) {
           duplicateCount++;
-        } else {
-          db.data.servers.push(row);
-          newCount++;
         }
-      } else if (strategy === 'update') {
-        if (existingIndex !== undefined) {
-          const old = db.data.servers[existingIndex];
-          db.data.servers[existingIndex] = {
-            ...old,
-            ...row,
-            id: old.id, // maintain primary key
-            updated_at: new Date().toISOString(),
-          };
-          updatedCount++;
-        } else {
-          db.data.servers.push(row);
-          newCount++;
+        processedKeys.add(key);
+
+        const old = existing.get(key);
+        const nowIso = new Date().toISOString();
+
+        if (strategy === 'insert') {
+          if (old) {
+            duplicateCount++;
+          } else {
+            db.insertServer(row);
+            newCount++;
+          }
+        } else if (strategy === 'update') {
+          if (old) {
+            db.updateServer(old.id, { ...old, ...row, id: old.id, updated_at: nowIso });
+            updatedCount++;
+          } else {
+            db.insertServer(row);
+            newCount++;
+          }
+        } else if (strategy === 'synchronise') {
+          if (old) {
+            db.updateServer(old.id, { ...old, ...row, id: old.id, is_missing_from_source: false, updated_at: nowIso });
+            updatedCount++;
+          } else {
+            db.insertServer(row);
+            newCount++;
+          }
         }
-      } else if (strategy === 'synchronise') {
-        if (existingIndex !== undefined) {
-          const old = db.data.servers[existingIndex];
-          db.data.servers[existingIndex] = {
-            ...old,
-            ...row,
-            id: old.id,
-            is_missing_from_source: false,
-            updated_at: new Date().toISOString(),
-          };
-          updatedCount++;
-        } else {
-          db.data.servers.push(row);
-          newCount++;
+      });
+
+      // If synchronise, flag disappeared records without deleting (Section 4.1 Stage 4)
+      if (strategy === 'synchronise') {
+        for (const srv of db.allServers()) {
+          const key = `${srv.host.toLowerCase()}::${srv.vm.toLowerCase()}`;
+          if (!processedKeys.has(key)) {
+            db.updateServer(srv.id, { ...srv, is_missing_from_source: true, updated_at: new Date().toISOString() });
+          }
         }
       }
     });
-
-    // If synchronise, flag disappeared records without deleting (Section 4.1 Stage 4)
-    if (strategy === 'synchronise') {
-      db.data.servers.forEach(s => {
-        const key = `${s.host.toLowerCase()}::${s.vm.toLowerCase()}`;
-        if (!processedKeys.has(key)) {
-          s.is_missing_from_source = true;
-          s.updated_at = new Date().toISOString();
-        }
-      });
-    }
 
     const historyItem: ImportHistoryItem = {
       id: crypto.randomUUID(),
@@ -2370,23 +2240,22 @@ async function startServer() {
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    db.data.import_history.unshift(historyItem);
-    db.logAudit(req.user?.email || user || 'system', 'IMPORT_CSV', 'INVENTORY', historyItem.id, null, null, `Imported ${incoming.length} records (${strategy}): ${newCount} new, ${updatedCount} updated`);
-    db.save();
+    db.insertImportHistory(historyItem);
+    logAudit(req.user?.email || user || 'system', 'IMPORT_CSV', 'INVENTORY', historyItem.id, null, null, `Imported ${incoming.length} records (${strategy}): ${newCount} new, ${updatedCount} updated`);
 
     res.json({
       summary: historyItem,
-      total_in_database: db.data.servers.length,
+      total_in_database: db.serverCount(),
     });
   });
 
   api.get('/imports/history', (req: Request, res: Response) => {
-    res.json(db.data.import_history);
+    res.json(db.allImportHistory());
   });
 
   // 14. AUDIT LOGS
   api.get('/audit-logs', (req: Request, res: Response) => {
-    res.json(db.data.audit_logs);
+    res.json(db.allAudit());
   });
 
   // 15. RESET / SEED
@@ -2394,8 +2263,8 @@ async function startServer() {
     if (IS_PRODUCTION && process.env.ALLOW_SEED_RESET !== '1') {
       return res.status(403).json({ error: 'Seed reset is disabled in production.' });
     }
-    db.seedFromDefaultCsv();
-    res.json({ success: true, count: db.data.servers.length });
+    const count = seedFromDefaultCsv();
+    res.json({ success: true, count });
   });
 
   // Mount API router

@@ -13,6 +13,7 @@
     "verify:reports": "tsx scripts/verify-reports.ts",
     "verify:incidents": "tsx scripts/verify-incident-analysis.ts",
     "verify:auth": "tsx scripts/verify-auth.ts",
+    "migrate:db": "tsx scripts/migrate-to-sqlite.ts",
     "verify": "npm run verify:reports && npm run verify:incidents && npm run verify:auth"
   },
   "dependencies": {
