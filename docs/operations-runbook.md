@@ -1,13 +1,13 @@
 # Operations runbook
 
-> **At a glance:** Install with npm (legacy peer resolution), run with `npm run dev`, persist by backing up `data/csm_database.json`, and verify with `npm run verify`.
+> **At a glance:** Install with npm (legacy peer resolution), run with `npm run dev`, persist by backing up `data/auth.sqlite` + `data/cmdb.sqlite`, and verify with `npm run verify`.
 
 | | |
 |---|---|
 | Runtime | Node.js 22+, npm 10+ |
 | Dev server | `npm run dev` → http://localhost:3000 |
 | Production | `npm run build` then `NODE_ENV=production npm start` |
-| Database | `data/csm_database.json` (single file, rewritten on every change) |
+| Database | `data/auth.sqlite` (users + sessions) and `data/cmdb.sqlite` (application data) — embedded SQLite, WAL mode |
 | Seed data | `public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv` |
 
 ## 1. First install
@@ -35,7 +35,8 @@ npm run dev
 
 - Serves the API and the Vite-powered SPA on **http://localhost:3000**.
 - Change the port with `PORT=3010 npm run dev` (macOS/Linux) or `$env:PORT=3010; npm run dev` (PowerShell).
-- The first start seeds `data/csm_database.json` if it does not exist, then sanitises and rewrites it. This is normal: `updated_at` values change on first boot.
+- On first boot the server creates `data/auth.sqlite` and `data/cmdb.sqlite`. It imports any legacy `data/csm_database.json` once; if that file is absent it seeds the demo CSV. The legacy JSON is left untouched and can be deleted after sign-off.
+- One-shot import (optional): `npm run migrate:db` re-imports `data/csm_database.json` into the two SQLite files (it first deletes the existing `.sqlite` files).
 
 ### Sign in (local authentication)
 
@@ -80,14 +81,26 @@ In production the Express process serves `dist/` and falls back to `index.html` 
 
 ## 4. Data backup and restore
 
-The entire estate is one JSON file.
+The estate lives in two embedded SQLite databases, kept separate:
+
+- `data/auth.sqlite` — users and sessions (the user database)
+- `data/cmdb.sqlite` — servers, incidents, patch campaigns, audit log, import history
+
+**Online snapshot (safe while the server runs)** — use the SQLite backup API:
 
 ```bash
-# stop the server first — it writes on every mutation
-cp data/csm_database.json data/csm_database.backup-$(date +%F).json
+node -e "const { backup, DatabaseSync } = require('node:sqlite'); (async () => { const a = new DatabaseSync('data/auth.sqlite'); const c = new DatabaseSync('data/cmdb.sqlite'); await backup(a, 'data/auth.sqlite.bak'); await backup(c, 'data/cmdb.sqlite.bak'); console.log('backup complete'); })()"
 ```
 
-Restore by putting the file back while the server is stopped, then start again. A missing or unparsable file is **not** restored automatically: the server seeds demo data and overwrites the file. Keep backups outside `data/` as well.
+**Or stop the server and copy the files** (checkpoint flushes WAL to the main file first):
+
+```bash
+# stop the server first
+cp data/auth.sqlite  data/auth.sqlite.backup-$(date +%F)
+cp data/cmdb.sqlite  data/cmdb.sqlite.backup-$(date +%F)
+```
+
+Restore by replacing both files while the server is stopped, then start again. A legacy `data/csm_database.json` is only a pre-migration artifact, not the source of truth. Keep backups outside `data/` (everything under `data/` is git-ignored).
 
 ## 5. Reset to demo data
 
@@ -99,7 +112,7 @@ Or via the API:
 curl -X POST http://localhost:3000/api/seed/reset
 ```
 
-This re-seeds servers, incidents, patch campaigns and clears audit logs and import history. It does not touch files outside `data/csm_database.json`.
+This re-seeds servers, incidents, patch campaigns and clears audit logs and import history in `data/cmdb.sqlite`. The user database `data/auth.sqlite` (users + sessions) is untouched. In production this endpoint is refused unless `ALLOW_SEED_RESET=1`.
 
 ## 6. Import a server CSV
 
@@ -112,7 +125,7 @@ This re-seeds servers, incidents, patch campaigns and clears audit logs and impo
 4. Review the preview (the first 20 rows are validated) and execute.
 5. Check **Import History** for the summary and any row errors; the audit log records one `IMPORT_CSV` event per run.
 
-Before a large import: back up the JSON file (section 4). There is no undo.
+Before a large import: back up the SQLite databases (section 4). There is no undo.
 
 Required columns are matched by header aliases; the canonical source headers are in the seed CSV. `Host` and `VM` form the identity key, so blank values create unpredictable duplicates.
 
@@ -127,7 +140,7 @@ npm run lint             # tsc --noEmit
 npm run build            # production bundle
 ```
 
-`verify:reports` and `verify:incidents` read the live `data/csm_database.json`, so run them after changing data or report logic. They exit non-zero and print each failed assertion. They are safe: they only read the file.
+`verify:reports` and `verify:incidents` read the live application data, so run them after changing data or report logic. They exit non-zero and print each failed assertion. They are read-only. (Note: these two scripts currently load the legacy `data/csm_database.json` directly; re-pointing them at the SQLite store is a pending follow-up.)
 
 Optional UI smoke test (needs the dev server on port 3010 and Chrome started with `--remote-debugging-port=9222`):
 
@@ -143,9 +156,9 @@ It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (both are requir
 |---|---|---|
 | `EADDRINUSE :3000` | Another dev server or app is on the port | Stop it, or start with `PORT=3010` |
 | `npm error ERESOLVE … esbuild` | Vite 8 optional peer mismatch | `npm install --legacy-peer-deps` |
-| App shows demo data after a data loss | JSON file missing or unparsable; server re-seeded | Restore a backup while stopped; do not rely on the file being rebuilt |
-| `[DB] Error loading database file, re-seeding...` | Corrupt JSON | Inspect the file for syntax errors, fix or restore backup. A copy of the old file is not kept |
-| Data changes disappear on restart | The server was stopped mid-write, or a second process overwrote the file | Use one process per data file; stop cleanly; restore the newest backup |
+| App shows demo data after a data loss | SQLite files were empty or deleted; the store imported legacy JSON or seeded demo data | Restore a backup while stopped; do not rely on the store being rebuilt |
+| `SQLITE_CORRUPT` / `database disk image is malformed` | Corrupt database file | Stop the server, restore both `.sqlite` backups, restart |
+| Data changes disappear on restart | Two processes opened the same SQLite file, or the process was killed mid-transaction | Run one process per database file; stop cleanly; restore the newest backup |
 | Reports show fewer servers than expected | The report loader requests `limit=1000` | Expected ceiling; see [Reports](./pages/10-reports.md) |
 | Import reports duplicates that look unique | Match key is lower-cased `host::vm`; leading/trailing spaces are trimmed | Normalise both columns in the source CSV |
 | `dist/index.html` not found in production | `npm run build` not run, or run in the wrong directory | Rebuild; confirm `dist/` exists relative to `server.ts` |
@@ -153,18 +166,18 @@ It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (both are requir
 
 ## 9. Logs and monitoring
 
-- The server logs `[DB] Loaded and sanitized N servers` and `[CSM Server] Running on http://0.0.0.0:PORT` at startup.
+- At startup the server logs `[DB] Imported legacy JSON...` (first boot from an existing JSON), `[DB] Seeded N server records.` (fresh seed), and `[CSM Server] Running on http://HOST:PORT` (`HOST` is `127.0.0.1` in dev, `0.0.0.0` in production).
 - There is no request log, metrics endpoint or health-check route beyond `/api/stats`.
-- Audit events are visible in **Settings → Audit Log** and capped at the newest 500.
+- Audit events are visible in **Settings → Audit Log** and capped at `AUDIT_LOG_LIMIT` (default 5000).
 - For a lightweight uptime check, poll `GET /api/stats` and assert `total_servers > 0`.
 
 ## 10. Upgrade procedure
 
 1. Stop the server.
-2. Back up `data/csm_database.json`.
+2. Back up `data/auth.sqlite` and `data/cmdb.sqlite` (section 4).
 3. Pull the new code and reinstall (`npm install --legacy-peer-deps`).
 4. Run `npm run lint`, `npm run verify` and `npm run build`.
 5. Start the server and query `/api/stats`; open **Data Sync** to confirm record counts.
-6. If the schema changed, check the release notes; there is no migration framework — new fields are sanitised on load and missing ones default to empty.
+6. If the schema changed, review `db/auth.sql` and `db/app.sql`; the store applies `CREATE TABLE IF NOT EXISTS` at startup and imports a legacy `data/csm_database.json` only when the SQLite store is empty.
 
 Related: [Architecture](./architecture.md), [Data Sync](./pages/11-data-management.md), [Reports](./pages/10-reports.md).
