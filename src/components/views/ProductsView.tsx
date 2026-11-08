@@ -261,7 +261,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           </div>
                           {primaryOwner.email && (
                             <a
-                              href={`mailto:${primaryOwner.email}`}
+                              href={`mailto:${encodeURIComponent(primaryOwner.email)}`}
                               className="text-[10px] text-slate-400 hover:text-blue-400 font-mono truncate block transition-colors"
                               title={`Email ${primaryOwner.name}`}
                             >

@@ -4,7 +4,11 @@
 
 const csvCell = (value: unknown): string => {
   const raw = value === null || value === undefined ? '' : String(value);
-  return `"${raw.replace(/"/g, '""')}"`;
+  const escaped = raw.replace(/"/g, '""');
+  // Neutralise spreadsheet formula injection by prefixing cells that would
+  // otherwise be interpreted as a formula.
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${escaped}` : escaped;
+  return `"${safe}"`;
 };
 
 /** Builds an Excel-friendly UTF-8 CSV (BOM + CRLF, quoted cells). */

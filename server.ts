@@ -27,7 +27,6 @@ import {
   isRole,
   normalizeEmail,
   parseCookies,
-  randomPassword,
   requiredRolesFor,
   sanitizeUser,
   validatePassword,
@@ -42,6 +41,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.resolve(__dirname, 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'csm_database.json');
 const CSV_SOURCE_FILE = path.resolve(__dirname, 'public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv');
+const AUDIT_LOG_LIMIT = Math.max(500, parseInt(process.env.AUDIT_LOG_LIMIT || '5000', 10) || 5000);
 
 export function cleanString(val: any): string {
   if (val === null || val === undefined) return '';
@@ -200,28 +200,29 @@ class Database {
   ensureBootstrapAdmin() {
     if (this.data.users.length > 0) return;
 
-    const email = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@cmdb.local');
-    const providedPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-    const password = providedPassword || randomPassword();
+    const email = normalizeEmail(process.env.cmdbUser);
+    const password = process.env.cmdbPass;
+    if (!email || !email.includes('@') || !password) {
+      throw new Error(
+        '[AUTH] No users exist and first-run bootstrap requires cmdbUser (a valid email) and cmdbPass environment variables.'
+      );
+    }
+
     const now = new Date().toISOString();
 
     this.data.users.push({
       id: crypto.randomUUID(),
       email,
-      name: process.env.BOOTSTRAP_ADMIN_NAME || 'Local Administrator',
+      name: process.env.cmdbName || 'CMDB Administrator',
       role: 'admin',
       password_hash: hashPassword(password),
       active: true,
-      must_change_password: !providedPassword,
+      must_change_password: true,
       created_at: now,
       updated_at: now,
     });
 
     console.log(`[AUTH] Bootstrapped administrator: ${email}`);
-    if (!providedPassword) {
-      console.log('[AUTH] Generated first-run password (store it now, it is not shown again):');
-      console.log(`[AUTH]     ${password}`);
-    }
   }
 
   pruneSessions() {
@@ -265,8 +266,8 @@ class Database {
       user_agent: meta?.user_agent,
     };
     this.data.audit_logs.unshift(event);
-    if (this.data.audit_logs.length > 500) {
-      this.data.audit_logs = this.data.audit_logs.slice(0, 500);
+    if (this.data.audit_logs.length > AUDIT_LOG_LIMIT) {
+      this.data.audit_logs = this.data.audit_logs.slice(0, AUDIT_LOG_LIMIT);
     }
     this.save();
   }
@@ -510,17 +511,56 @@ async function startServer() {
   if (AUTH_MODE === 'ldap') {
     throw new Error('[AUTH] AUTH_MODE=ldap is not implemented yet. Use local for now.');
   }
-  if (AUTH_MODE === 'disabled' && process.env.NODE_ENV === 'production') {
-    throw new Error('[AUTH] AUTH_MODE=disabled is not allowed in production.');
+  if (
+    AUTH_MODE === 'disabled' &&
+    (process.env.NODE_ENV === 'production' || process.env.ALLOW_INSECURE_DEV_AUTH !== '1')
+  ) {
+    throw new Error(
+      '[AUTH] AUTH_MODE=disabled requires NODE_ENV=development (not production) and ALLOW_INSECURE_DEV_AUTH=1.'
+    );
   }
 
-  const SESSION_SECURE =
-    process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV === 'production';
+  const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+  const SESSION_SECURE = process.env.COOKIE_SECURE === '1' || IS_PRODUCTION;
   if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+
+  app.disable('x-powered-by');
+
+  // Security response headers. CSP is applied only in production so Vite HMR
+  // and its inline/eval dev pipeline keep working during development.
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (SESSION_SECURE) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    if (IS_PRODUCTION) {
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      );
+    }
+    next();
+  });
+
+  // Never cache authenticated or auth-related responses; vary by cookie as a
+  // defense against shared-cache reuse of per-session JSON.
+  app.use(['/api', '/auth'], (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Vary', 'Cookie');
+    next();
+  });
 
   // Basic CSRF hardening: reject cross-origin state changes from browsers.
   app.use((req, res, next) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    const fetchSite = req.get('sec-fetch-site');
+    if (fetchSite && !['same-origin', 'same-site', 'none'].includes(fetchSite)) {
+      return res.status(403).json({ error: 'Cross-site request blocked.' });
+    }
     const origin = req.headers.origin;
     if (!origin) return next();
     const allowed = new Set([`${req.protocol}://${req.get('host')}`]);
@@ -586,11 +626,9 @@ async function startServer() {
   app.post('/auth/login', (req: Request, res: Response) => {
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password ?? '');
+    const now = Date.now();
     const attempt = loginAttempts.get(email);
-    if (attempt && attempt.lockedUntil > 0 && attempt.lockedUntil <= Date.now()) {
-      loginAttempts.delete(email);
-    }
-    if (attempt && attempt.lockedUntil > Date.now()) {
+    if (attempt && attempt.lockedUntil > now) {
       db.logAudit(
         email || 'unknown',
         'LOGIN_LOCKED',
@@ -603,12 +641,21 @@ async function startServer() {
       );
       return res.status(429).json({ error: 'Too many failed attempts. Try again in 15 minutes.' });
     }
+    if (attempt && attempt.lockedUntil > 0 && attempt.lockedUntil <= now) {
+      loginAttempts.delete(email);
+    }
+    const previousFailures = attempt && attempt.lockedUntil === 0 ? attempt.count : 0;
 
     const user = db.data.users.find(item => item.email === email);
     if (!user || !user.active || !verifyPassword(password, user.password_hash)) {
-      const next = { count: (attempt?.count ?? 0) + 1, lockedUntil: 0 };
-      if (next.count >= MAX_LOGIN_ATTEMPTS) next.lockedUntil = Date.now() + LOCKOUT_MS;
+      const next = { count: previousFailures + 1, lockedUntil: 0 };
+      if (next.count >= MAX_LOGIN_ATTEMPTS) next.lockedUntil = now + LOCKOUT_MS;
       loginAttempts.set(email, next);
+      if (loginAttempts.size > 10_000) {
+        for (const [key, value] of loginAttempts) {
+          if (value.lockedUntil > 0 && value.lockedUntil <= now) loginAttempts.delete(key);
+        }
+      }
       db.logAudit(
         email || 'unknown',
         'LOGIN_FAILED',
@@ -625,6 +672,7 @@ async function startServer() {
     loginAttempts.delete(email);
     user.last_login_at = new Date().toISOString();
     user.updated_at = user.last_login_at;
+    db.pruneSessions();
     const sessionId = createSession(user, req);
     db.save();
     db.logAudit(
@@ -697,6 +745,17 @@ async function startServer() {
 
   api.use(requireAuth);
   api.use(authorize);
+
+  // Enforce forced password rotation at the API boundary: users with a
+  // temporary/bootstrap password may only read /me and change their password.
+  api.use((req: Request, res: Response, next) => {
+    if (!req.user?.must_change_password) return next();
+    const path = req.path.replace(/\/+$/, '') || '/';
+    if (path === '/me' || path === '/me/password') return next();
+    return res
+      .status(403)
+      .json({ error: 'You must change your password before using the application.', code: 'PASSWORD_CHANGE_REQUIRED' });
+  });
 
   api.get('/me', (req: Request, res: Response) => {
     res.json({ user: req.user });
@@ -1259,7 +1318,7 @@ async function startServer() {
   });
 
   api.get('/business-units/:name', (req: Request, res: Response) => {
-    const buName = decodeURIComponent(req.params.name);
+    const buName = req.params.name;
     const servers = db.data.servers.filter(
       s => (s.business_unit || '').toLowerCase() === buName.toLowerCase()
     );
@@ -1458,7 +1517,7 @@ async function startServer() {
   });
 
   api.get('/managers/:name/servers', (req: Request, res: Response) => {
-    const mgrName = decodeURIComponent(req.params.name);
+    const mgrName = req.params.name;
     const servers = db.data.servers.filter(
       s => (s.manager || '').toLowerCase() === mgrName.toLowerCase()
     );
@@ -1507,7 +1566,7 @@ async function startServer() {
   });
 
   api.get('/networks/:name/servers', (req: Request, res: Response) => {
-    const netName = decodeURIComponent(req.params.name).toLowerCase();
+    const netName = req.params.name.toLowerCase();
     const servers = db.data.servers.filter(
       s =>
         (s.network_1 || '').toLowerCase() === netName ||
@@ -2332,6 +2391,9 @@ async function startServer() {
 
   // 15. RESET / SEED
   api.post('/seed/reset', (req: Request, res: Response) => {
+    if (IS_PRODUCTION && process.env.ALLOW_SEED_RESET !== '1') {
+      return res.status(403).json({ error: 'Seed reset is disabled in production.' });
+    }
     db.seedFromDefaultCsv();
     res.json({ success: true, count: db.data.servers.length });
   });
@@ -2339,8 +2401,15 @@ async function startServer() {
   // Mount API router
   app.use('/api', api);
 
+  // JSON 404 for unknown API routes (before the static/SPA fallback).
+  app.use('/api', (req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found.' });
+  });
+
+  const HOST = process.env.HOST || (IS_PRODUCTION ? '0.0.0.0' : '127.0.0.1');
+
   // Vite or Static file serving
-  if (process.env.NODE_ENV === 'production') {
+  if (IS_PRODUCTION) {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req: Request, res: Response) => {
@@ -2354,8 +2423,15 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[CSM Server] Running on http://0.0.0.0:${PORT}`);
+  // Central error handler: return JSON and never expose stack traces.
+  app.use((err: unknown, _req: Request, res: Response, _next: express.NextFunction) => {
+    console.error('[HTTP] Unhandled error:', err);
+    if (res.headersSent) return;
+    res.status(500).json({ error: 'Internal server error.' });
+  });
+
+  app.listen(PORT, HOST, () => {
+    console.log(`[CSM Server] Running on http://${HOST}:${PORT}`);
   });
 }
 

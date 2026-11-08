@@ -37,8 +37,10 @@ check(validatePassword('Correct-Horse-9!') === null, 'strong password should pas
 const matrix: Array<[string, string, string[] | null]> = [
   ['GET', '/api/stats', null],
   ['GET', '/api/audit-logs', ['manager', 'admin']],
+  ['GET', '/API/audit-logs', ['manager', 'admin']],
   ['GET', '/api/imports/history', ['manager', 'admin']],
   ['GET', '/api/incidents', ['analyst', 'manager', 'admin']],
+  ['GET', '/Api/Incidents', ['analyst', 'manager', 'admin']],
   ['GET', '/api/incidents/123/impact', ['analyst', 'manager', 'admin']],
   ['POST', '/api/me/password', null],
   ['POST', '/api/servers', ['manager', 'admin']],
@@ -68,6 +70,7 @@ check(cookie.includes('Secure'), 'secure cookie must include Secure');
 check(cookie.includes('SameSite=Lax'), 'cookie must be SameSite=Lax');
 check(clearSessionCookie(false).includes('Max-Age=0'), 'clear cookie must expire immediately');
 check(parseCookies('a=1; cmdb_session=xyz; b=2').cmdb_session === 'xyz', 'cookie parser should read the session');
+check(parseCookies('cmdb_session=%').cmdb_session === undefined, 'malformed cookie value must be ignored');
 
 const user: UserRecord = {
   id: 'u1',

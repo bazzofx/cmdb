@@ -39,20 +39,21 @@ npm run dev
 
 ### Sign in (local authentication)
 
-Authentication is enabled by default (`AUTH_MODE=local`). The repository's ignored `.env` contains development-only credentials:
+Authentication is enabled by default (`AUTH_MODE=local`). There are no credentials stored in the repository. The first administrator is created from the OS environment on first run:
 
-```text
-admin@cmdb.local / AdminDevPass-123!
+```powershell
+$env:cmdbUser = "admin@example.internal"
+$env:cmdbPass = "<strong unique password>"
 ```
 
-Change that password from the user menu before sharing the environment. If `.env` is missing, the server bootstraps an administrator and prints a generated password once at startup. Production settings and the full pre-flight checklist are in [authentication4Production.md](../authentication4Production.md).
+Change that password from the user menu before sharing the environment; the server forces the change on first sign-in. If `cmdbUser`/`cmdbPass` are missing when the users table is empty, the server refuses to start. Production settings and the full pre-flight checklist are in [authentication4Production.md](../authentication4Production.md).
 
 Health check now needs a session:
 
 ```bash
 curl -c cookies.txt -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@cmdb.local","password":"AdminDevPass-123!"}'
+  -d "{\"email\":\"$CMDB_USER\",\"password\":\"$CMDB_PASS\"}"
 curl -b cookies.txt http://localhost:3000/api/stats
 curl -b cookies.txt "http://localhost:3000/api/servers?limit=5"
 ```
@@ -134,7 +135,7 @@ Optional UI smoke test (needs the dev server on port 3010 and Chrome started wit
 node scripts/ui-smoke.mjs
 ```
 
-It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (defaults to `admin@cmdb.local` / `AdminDevPass-123!`), visits every sidebar view, checks all 12 reports, narrows a search and opens a server from a report row. Views hidden by the signed-in role are skipped. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
+It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (both are required environment variables), visits every sidebar view, checks all 12 reports, narrows a search and opens a server from a report row. Views hidden by the signed-in role are skipped. It asserts the **seeded demo dataset** (9 servers, 2 incidents, 1 campaign), so update the expectations or reset the data before using it against a live estate.
 
 ## 8. Troubleshooting
 

@@ -145,14 +145,19 @@ export function parseCookies(header: string | undefined): Record<string, string>
     if (index === -1) continue;
     const key = part.slice(0, index).trim();
     const value = part.slice(index + 1).trim();
-    if (key) cookies[key] = decodeURIComponent(value);
+    if (!key) continue;
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch {
+      // Ignore malformed percent-encoding rather than throwing on a bad cookie.
+    }
   }
   return cookies;
 }
 
 /** Roles allowed to perform a mutating request. `null` means any authenticated role. */
 export function requiredRolesFor(method: string, apiPath: string): UserRole[] | null {
-  const path = apiPath.replace(/^\/api/, '') || '/';
+  const path = (apiPath.replace(/^\/api/i, '') || '/').toLowerCase();
 
   if (method === 'GET' || method === 'HEAD') {
     if (path.startsWith('/audit-logs')) return ['manager', 'admin'];

@@ -75,8 +75,12 @@ await send('Page.navigate', { url: APP });
 await sleep(5000);
 
 // Local auth is enabled by default. Sign in if the login form is present.
-const smokeEmail = process.env.SMOKE_EMAIL ?? 'admin@cmdb.local';
-const smokePassword = process.env.SMOKE_PASSWORD ?? 'AdminDevPass-123!';
+const smokeEmail = process.env.SMOKE_EMAIL;
+const smokePassword = process.env.SMOKE_PASSWORD;
+if (!smokeEmail || !smokePassword) {
+  console.error('SMOKE_EMAIL and SMOKE_PASSWORD must be set in the environment.');
+  process.exit(1);
+}
 const loginState = await evaluate(`(() => {
   const password = document.querySelector('input[type="password"]');
   if (!password) return 'already';

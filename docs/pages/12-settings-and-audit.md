@@ -86,7 +86,7 @@ Not displayed: `entity_id`, `previous_value` and `new_value`. The last two are s
 ## 6. Gotchas and guardrails
 
 - **Roles are enforced by the API.** Each route is guarded by the central policy in `auth.ts`. The sidebar hides Incidents/Archive from viewers, Data Sync/Settings from viewers and analysts, and user management from everyone except admins.
-- The log is capped at 500 events. `logAudit` unshifts and then slices to the newest 500, so the oldest events disappear silently. Export to a SIEM for durable retention.
+- The log is capped at 5000 events by default (`AUDIT_LOG_LIMIT`). `logAudit` unshifts and then slices to the newest `AUDIT_LOG_LIMIT`, so the oldest events disappear silently. Export to a SIEM for durable retention.
 - Most mutations are audited, including incident host-detail updates and access-denied events. **Reset to Demo Seed** and communications previews are still not audited.
 - A call to `DELETE /api/servers/:id` writes a `DELETE_SERVER` event, but the record is gone; the audit entry is the only trace.
 - A failed `/api/audit-logs` or `/api/stats` call leaves the page looking empty rather than erroring. If the table is blank when you expect activity, reload before drawing conclusions.

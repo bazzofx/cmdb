@@ -11,6 +11,32 @@
 | Primary users | Data managers, infrastructure owners and the CMDB administrator who receive the monthly CSM extract |
 | Depends on | `parseCsvToServers` and `sanitizeServerRecord` in `server.ts`; `data/csm_database.json`; the sample CSV under `public/assets/aistudio/` |
 
+## How it works
+
+```mermaid
+flowchart TD
+    subgraph Browser["Browser — DataManagementView.tsx + api.ts"]
+        A["Choose local file or load sample<br/>(input type=file, accept=.csv)"] --> B["FileReader.readAsText(file)"]
+        B --> C["csv_content — the raw file as one string"]
+        C --> D["POST /api/imports/preview<br/>{ csv_content }"]
+    end
+
+    subgraph Server["Server — server.ts"]
+        D --> E["parseCsvToServers(csvText)"]
+        E --> F["parseCsvLine()<br/>tokenise rows (quotes, escaped quotes)"]
+        F --> G["sanitizeServerRecord()<br/>trim, strip control chars, lowercase email"]
+        G --> H["Return preview<br/>detected_columns, suggested_mapping,<br/>20 rows + validation issues"]
+    end
+
+    H --> I["Operator selects a strategy<br/>insert / update / synchronise"]
+    I --> J["POST /api/imports/execute<br/>{ csv_content, strategy }"]
+    J --> K["Re-parse and apply the strategy to db.data.servers"]
+    K --> L["db.save() + audit event IMPORT_CSV<br/>+ import history record"]
+    L --> M["GET /api/imports/history"]
+```
+
+The client never sends a multipart file — it reads the whole CSV into a string with `FileReader.readAsText` and posts that string as JSON. The preview endpoint parses it with `parseCsvToServers` (which uses `parseCsvLine` to tokenise each row) and normalises every field through `sanitizeServerRecord`, then returns the detected columns, a suggested column mapping, and up to 20 validated preview rows. On execute, the same parsing runs again and the chosen strategy — `insert`, `update`, or `synchronise` — is applied to the in-memory server list before the database is written and a single `IMPORT_CSV` audit event is recorded.
+
 ## 1. What this page is for
 
 This is the only page that changes inventory in bulk. It takes a CSV export from the CSM source, shows what the importer understood, flags rows with hygiene problems, asks how existing records should be treated, and writes the result. Every run is recorded in the history table at the bottom of the page and as a single audit event.

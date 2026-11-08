@@ -20,7 +20,7 @@
 | Value | Behaviour |
 |---|---|
 | `local` | Local accounts (default, air-gapped) |
-| `disabled` | Development only. Injects a synthetic local admin. **Refused when `NODE_ENV=production`.** |
+| `disabled` | Development only. Injects a synthetic local admin. **Requires `NODE_ENV=development` (not production) and `ALLOW_INSECURE_DEV_AUTH=1`.** |
 | `ldap` | Reserved. The server refuses to start until a directory provider is implemented. |
 
 ## 2. Pre-production checklist
@@ -35,15 +35,15 @@ Treat every unchecked box as a blocker.
 | 4 | `COOKIE_SECURE=1` | Marks the session cookie `Secure` |
 | 5 | `APP_URL` is the exact public URL | Used by the Origin check; a mismatch blocks sign-in |
 | 6 | `TRUST_PROXY=1` when behind a reverse proxy | `req.protocol`/`req.ip` must reflect the client |
-| 7 | `BOOTSTRAP_ADMIN_PASSWORD` removed after first start | No shared bootstrap secret remains on disk |
-| 8 | The bootstrap admin password has been changed | The first-run password is temporary |
+| 7 | `cmdbUser`/`cmdbPass` are set in the OS environment, never in `.env` | No shared bootstrap secret remains on disk |
+| 8 | The bootstrap admin password has been changed on first sign-in | The first admin is forced to rotate (`must_change_password`) |
 | 9 | Development users and `.env` dev credentials removed | `.env` must never be copied to production |
 | 10 | At least two active administrators exist | Prevents a single-account lockout |
 | 11 | A user/role review has been completed | Least privilege: viewers should outnumber admins |
-| 12 | `data/csm_database.json` is readable only by the service account | It contains password hashes, sessions and manager emails |
+| 12 | `data/csm_database.json` is readable only by the service account and untracked from git | It contains password hashes, sessions and manager emails |
 | 13 | Backups include `users`, `sessions` and `audit_logs` | Account and evidence recovery |
-| 14 | The audit-log cap is raised or shipped to a SIEM | The default cap is 500 events |
-| 15 | All fonts/assets are local and no external runtime requests remain; CSP added | Air-gapped browsers must not reach the internet |
+| 14 | The audit-log cap is raised or shipped to a SIEM | The default cap is 5000 events (`AUDIT_LOG_LIMIT`) |
+| 15 | Fonts/assets are local and no external runtime requests remain; CSP and security headers enabled | Air-gapped browsers must not reach the internet |
 | 16 | NTP is configured on the host | Session/audit timestamps and future TOTP |
 | 17 | `start-dev.bat` is not used in production | It is a developer convenience only |
 | 18 | Login failure/lockout monitoring is in place | Detect credential attacks |
@@ -58,13 +58,15 @@ COOKIE_SECURE=1
 TRUST_PROXY=1
 SESSION_TTL_HOURS=12
 
-# First start only, while the users table is empty:
-BOOTSTRAP_ADMIN_EMAIL=admin@example.internal
-BOOTSTRAP_ADMIN_NAME=CMDB Administrator
-BOOTSTRAP_ADMIN_PASSWORD=<strong unique password>
+# First start only, while the users table is empty.
+# Set these in the OS environment (PowerShell):
+#   $env:cmdbUser = "admin@example.internal"
+#   $env:cmdbPass = "<strong unique password>"
+# Optional display name:
+#   $env:cmdbName = "CMDB Administrator"
 ```
 
-Remove `BOOTSTRAP_ADMIN_PASSWORD` after the first successful start. The bootstrap block only runs when `users` is empty, so it is inert afterwards, but the secret should still not remain in the environment file.
+Set `cmdbUser`/`cmdbPass` in the process environment, not in the `.env` file. The bootstrap block runs only when `users` is empty, so it is inert afterwards, but the secret should still not remain in the service environment after the first administrator has changed their password. The first administrator is forced to change the password on first sign-in (`must_change_password`).
 
 `APP_URL` must match the browser origin exactly (scheme, host and port). The Origin check also accepts the request's own host, but an exact `APP_URL` avoids surprises behind proxies.
 
@@ -72,20 +74,20 @@ Remove `BOOTSTRAP_ADMIN_PASSWORD` after the first successful start. The bootstra
 
 1. Stop the service.
 2. Back up `data/csm_database.json`.
-3. Set the environment above with a strong bootstrap password.
+3. Set `cmdbUser` and `cmdbPass` in the OS environment with a strong bootstrap password.
 4. Start the service and sign in as the bootstrap admin.
-5. Change the password from the user menu (`Change password`).
+5. Change the password from the user menu (`Change password`). The server forces this on first sign-in.
 6. Create the real users under **Settings → Users & Roles**:
    - `viewer` for people who only read the estate and reports. Viewers cannot open Incidents or Archive Incident.
    - `analyst` for incident triage, communications and patch campaigns.
    - `manager` for analysts who also own imports, server/ownership edits and the audit log.
    - `admin` for at most two or three people.
 7. Sign in once as each role and confirm the expected navigation and write buttons.
-8. Remove `BOOTSTRAP_ADMIN_PASSWORD` from the environment and restart.
+8. Remove `cmdbUser`/`cmdbPass` from the service environment and restart.
 9. Confirm `AUTH_MODE=disabled` is not set anywhere.
 10. Record the recovery procedure and the second administrator.
 
-New users are created with `must_change_password=true`; they see a banner until they change it. Administrators can reset a password, which forces the same change and invalidates that user's sessions.
+New users are created with `must_change_password=true`; the API rejects every request except `GET /api/me` and `POST /api/me/password` until they change it. Administrators can reset a password, which forces the same change and invalidates that user's sessions.
 
 ### Break-glass recovery
 
@@ -139,7 +141,7 @@ Every authentication and authorisation event is written to `audit_logs` with:
 - `user` (email), `actor_role`, `outcome` (`success`/`failure`), IP and user agent.
 - `action` such as `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGIN_LOCKED`, `LOGOUT`, `ACCESS_DENIED`, `PASSWORD_CHANGED`, `USER_CREATED`, `USER_UPDATED`, `PASSWORD_RESET`, `UPDATE_INCIDENT_HOST`.
 
-The log is currently capped at 500 events and stored in the same JSON file. Before production:
+The log is currently capped at 5000 events by default (`AUDIT_LOG_LIMIT`) and stored in the same JSON file. Before production:
 
 - Raise the cap or export audit events to the SIEM.
 - Treat the JSON audit log as operational evidence, not tamper-proof evidence. Anyone with file access can edit it.

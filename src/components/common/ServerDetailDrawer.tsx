@@ -161,7 +161,7 @@ export const ServerDetailDrawer: React.FC<ServerDetailDrawerProps> = ({
               )}
               {server.email && (
                 <a
-                  href={`mailto:${server.email}?subject=Inquiry regarding server ${server.host}&body=Hello ${server.manager},%0D%0A%0D%0AWe are contacting you regarding ${server.host} (${server.vm}) in ${server.business_unit}.`}
+                  href={`mailto:${encodeURIComponent(server.email)}?subject=${encodeURIComponent(`Inquiry regarding server ${server.host}`)}&body=${encodeURIComponent(`Hello ${server.manager},\n\nWe are contacting you regarding ${server.host} (${server.vm}) in ${server.business_unit}.`)}`}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 text-blue-300 transition-colors cursor-pointer"
                 >
                   <Mail className="w-3.5 h-3.5" />
