@@ -3,9 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CSM Server Ownership & Business Intelligence</title>
+    <title>SOC CMDB — Server Ownership & Business Intelligence</title>
+    <link rel="icon" type="image/x-icon" href="/assets/favourites.ico" />
+    <link rel="shortcut icon" href="/assets/favourites.ico" />
+    <link rel="apple-touch-icon" href="/assets/logo.png" />
+    <script>
+      (function () {
+        try {
+          var allowed = ['default', 'steel', 'x3000', 'midnight', 'morning', 'coffee', 'cyber'];
+          var stored = window.localStorage.getItem('csm-theme') || 'steel';
+          document.documentElement.setAttribute(
+            'data-theme',
+            allowed.indexOf(stored) === -1 ? 'steel' : stored
+          );
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'steel');
+        }
+      })();
+    </script>
     <meta name="description" content="Centralised visibility of server infrastructure, ownership, business units, technical relationships, incident triage, and operational responsibilities for Security and Infrastructure teams." />
-    <meta property="og:title" content="CSM Server Ownership & Business Intelligence" />
+    <meta property="og:title" content="SOC CMDB — Server Ownership & Business Intelligence" />
     <meta property="og:description" content="Centralised visibility of server infrastructure, ownership, business units, technical relationships, incident triage, and operational responsibilities for Security and Infrastructure teams." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />

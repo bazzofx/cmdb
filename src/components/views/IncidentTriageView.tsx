@@ -785,7 +785,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 </button>
 
                 {exportDropdownOpen && (
-                  <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0d1424] border border-blue-500/30 shadow-2xl py-1.5 z-50 text-xs font-mono backdrop-blur-xl">
+                  <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[var(--surface-1)] border border-blue-500/30 shadow-2xl py-1.5 z-50 text-xs font-mono backdrop-blur-xl">
                     <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-slate-400 border-b border-white/10 font-bold">
                       Export Incident Report
                     </div>
@@ -878,7 +878,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
 
       {/* Empty State when no active incidents exist */}
       {!selectedIncident && (
-        <div className="p-12 text-center rounded-2xl bg-[#0d1424]/80 border border-white/10 space-y-4">
+        <div className="p-12 text-center rounded-2xl bg-[var(--surface-1)]/80 border border-white/10 space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
             <FolderArchive className="w-8 h-8" />
           </div>
@@ -925,7 +925,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                   className={`lg:col-span-4 p-4 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between ${
                     filterStatus === 'Patched'
                       ? 'border-emerald-400 bg-emerald-950/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
-                      : 'border-emerald-500/30 bg-[#0d1424]/90 hover:border-emerald-400/50 hover:bg-[#101b30]/90 shadow-lg'
+                      : 'border-emerald-500/30 bg-[var(--surface-1)]/90 hover:border-emerald-400/50 hover:bg-[var(--surface-2)]/90 shadow-lg'
                   }`}
                   title="Click to filter by patched servers"
                 >
@@ -949,7 +949,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                         <path
                           d="M 15 65 A 45 45 0 0 1 105 65"
                           fill="none"
-                          stroke="#1e293b"
+                          stroke="var(--chart-track)"
                           strokeWidth="10"
                           strokeLinecap="round"
                         />
@@ -1001,7 +1001,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 </div>
 
                 {/* Simpler Text Statistics Panel (Replacing the other 5 cards with smaller, clean text view) */}
-                <div className="lg:col-span-8 p-4 rounded-xl bg-[#0d1424]/70 border border-slate-800/80 backdrop-blur-md flex flex-col justify-between space-y-3">
+                <div className="lg:col-span-8 p-4 rounded-xl bg-[var(--surface-1)]/70 border border-slate-800/80 backdrop-blur-md flex flex-col justify-between space-y-3">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-200 tracking-wide font-sans">
@@ -1361,10 +1361,10 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
 
           {/* ============================================================== */}
           {/* CENTRAL AFFECTED SERVERS & ACTION TABLE                        */}
-          {/* (Rendered in 'unified' and 'table_only' modes)                 */}
+          {/* (Rendered in both 'dashboard' and 'table' modes)               */}
           {/* ============================================================== */}
-          {viewMode === 'table' && (
-            <div className="rounded-xl soc-glass-panel border border-white/15 overflow-hidden space-y-4 p-5 shadow-2xl bg-[#0F172A]/80">
+          {(viewMode === 'table' || viewMode === 'dashboard') && (
+            <div className="rounded-xl soc-glass-panel border border-white/15 overflow-hidden space-y-4 p-5 shadow-2xl bg-[var(--surface-2)]/80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -1636,17 +1636,17 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* ============================================================== */}
       {editingServer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-xl bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-xl bg-[var(--surface-2)] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
             <div className="flex items-start justify-between pb-3 border-b border-white/10">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <StickyNote className="w-5 h-5 text-amber-400" />
                   <h3 className="text-sm font-bold font-mono text-white">
-                    Investigation & Remediation Notes: {editingServer.host}
+                    Incident Notes: {editingServer.vm}
                   </h3>
                 </div>
                 <p className="text-xs text-slate-400 font-mono">
-                  VM: {editingServer.vm} • IP: {editingServer.primary_ip_address} • BU: {editingServer.business_unit}
+                  VM: {editingServer.host} • IP: {editingServer.primary_ip_address} • BU: {editingServer.business_unit}
                 </p>
               </div>
               <button
@@ -1668,7 +1668,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                   type="text"
                   value={noteFormEngineer}
                   onChange={e => setNoteFormEngineer(e.target.value)}
-                  placeholder="e.g. Sarah Jenkins (Senior SecOps)"
+                  placeholder="e.g. John Lennon (Senior DevOps)"
                   className="w-full p-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
@@ -1683,7 +1683,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                   <select
                     value={noteFormPatchingStatus}
                     onChange={e => setNoteFormPatchingStatus(e.target.value as ServerPatchingStatus)}
-                    className="w-full p-2 rounded-lg bg-[#1F2937] border border-white/10 text-white font-mono focus:outline-none focus:border-blue-400"
+                    className="w-full p-2 rounded-lg bg-[var(--surface-3)] border border-white/10 text-white font-mono focus:outline-none focus:border-blue-400"
                   >
                     {patchingStatuses.map(st => (
                       <option key={st} value={st}>{st}</option>
@@ -1709,13 +1709,13 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
               <div>
                 <label className="text-slate-300 font-mono text-[11px] flex items-center gap-1.5 mb-1">
                   <Ticket className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Ticket Number / Change Reference</span>
+                  <span>SR Number / Change Reference</span>
                 </label>
                 <input
                   type="text"
                   value={noteFormTicket}
                   onChange={e => setNoteFormTicket(e.target.value)}
-                  placeholder="e.g. SEC-2026-9041 / CHG-4812"
+                  placeholder="e.g. SR-90001 / CR-512333"
                   className="w-full p-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
@@ -1731,7 +1731,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                 />
                 <label htmlFor="noteComm" className="text-slate-200 cursor-pointer flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Stakeholder / Business Owner Notified of this Incident</span>
+                  <span>Business Owner Notified of this Incident ?</span>
                 </label>
               </div>
 
@@ -1777,7 +1777,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* CLOSE & ARCHIVE INCIDENT MODAL */}
       {showCloseModal && selectedIncident && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg bg-[var(--surface-2)] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
             <div className="flex items-start justify-between pb-3 border-b border-white/10">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
@@ -1866,7 +1866,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* CREATE INCIDENT MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-lg bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg bg-[var(--surface-2)] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-rose-400" /> Create Security Incident / Triage
             </h2>
@@ -1979,7 +1979,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* ADD / UPLOAD AFFECTED SERVERS MODAL */}
       {showAddServersModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-xl bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-xl bg-[var(--surface-2)] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Upload className="w-5 h-5 text-blue-400" /> Upload / Add Data to Incident
@@ -2071,7 +2071,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* HOST ACTION MODAL (OPENED BY CLICKING HOSTNAME) */}
       {hostActionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-[#111827] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-[var(--surface-2)] border border-white/15 rounded-xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <div className="flex items-center gap-2 text-white font-mono font-bold text-sm">
                 <Server className="w-4 h-4 text-blue-400" />
@@ -2144,7 +2144,7 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
       {/* REMOVE SERVER CONFIRMATION MODAL */}
       {removingServer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-[#111827] border border-rose-500/30 rounded-xl p-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-sm bg-[var(--surface-2)] border border-rose-500/30 rounded-xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center gap-2.5 text-rose-400 font-bold text-sm">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <span>Remove Host from Incident?</span>

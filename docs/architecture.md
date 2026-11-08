@@ -33,11 +33,13 @@ There is no separate frontend server, no router library and no database server. 
 |---|---|
 | `server.ts` | Entire backend: schema, seeding, CSV parsing, all REST routes, static hosting |
 | `src/App.tsx` | Global shell, view switch, cross-view state (filters, selected server, incident counts) |
-| `src/components/layout/` | `Navbar`, `Sidebar` |
+| `src/components/layout/` | `Navbar`, `ThemeSwitcher`, `Sidebar` |
 | `src/components/auth/` | `LoginView`, `ChangePasswordModal` |
 | `src/components/settings/` | `UsersPanel` (admin role management) |
 | `src/components/views/` | One component per page (12 views) |
-| `src/components/common/` | `GlobalSearch`, `ServerDetailDrawer` |
+| `src/components/common/` | `GlobalSearch`, `ServerDetailDrawer`, `CyberAtmosphere` |
+| `src/theme/ThemeContext.tsx` | Palette definitions, `data-theme` application and `localStorage` persistence |
+| `src/theme/palettes.css` | Palette tokens and Tailwind `--color-*` scale overrides, including the Cyber atmosphere |
 | `src/context/AuthContext.tsx` | Session state, login/logout and 401 handling |
 | `auth.ts` | scrypt password hashing, sessions, cookies, role policy |
 | `src/services/api.ts` | Typed `fetch` wrapper with one shared `request()` helper; the only place URLs are built |
@@ -186,7 +188,7 @@ Views are presentational and receive callbacks; none of them talk to each other 
 
 - **ESM everywhere**, with explicit `.js` extensions in relative imports even for `.ts`/`.tsx` sources (`allowImportingTsExtensions` is off, `bundler` resolution is on).
 - Domain types live in one file; API functions return typed shapes; views avoid `any` except where legacy code already uses it.
-- Styling is Tailwind utility classes plus `.soc-glass-panel` and `.soc-glass-panel-hover` from `src/index.css`. The dark navy theme is global; there is no theme switch.
+- Styling is Tailwind utility classes plus `.soc-glass-panel` and `.soc-glass-panel-hover` from `src/index.css`. Seven colour palettes are selectable from the navbar; `src/theme/palettes.css` remaps the Tailwind `--color-*` scales per `data-theme`, so existing utility classes re-theme without per-view edits. The palette choice is persisted in `localStorage` (`csm-theme`) and applied by an inline script in `index.html` before first paint.
 - Icons come from `lucide-react`; charts are hand-built with CSS bars and inline SVG (no charting library).
 - Document exports are generated client-side: `docx` for Word, `jsPDF` for PDF, plain strings for Markdown.
 
@@ -206,6 +208,7 @@ These are real constraints, not roadmap promises:
 | No router / no URL state | Filtered views cannot be bookmarked or shared; refresh returns to Overview |
 | No automated UI tests | Verification covers reports and typechecking, not rendering |
 | No shared data cache | Each view remounts and refetches its datasets; mutations rely on explicit refreshes |
+| Theme is per-device | Palette selection lives in `localStorage`, not the user record; it does not follow the account across browsers |
 | No send capability | Communications previews text only; nothing is emailed or persisted |
 
 ## 10. Verification

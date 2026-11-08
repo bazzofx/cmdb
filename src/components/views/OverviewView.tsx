@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Server,
   Building2,
@@ -6,8 +6,6 @@ import {
   TriangleAlert,
   Activity,
   ArrowUpRight,
-  Calendar,
-  ChevronDown,
   Package,
   CheckCircle2,
   Shield,
@@ -20,7 +18,8 @@ import {
   ShieldAlert,
   FileWarning,
 } from 'lucide-react';
-import type { DashboardMetrics, AuditLogEvent } from '../../types/index.js';
+import type { DashboardMetrics, AuditLogEvent, ServerRecord } from '../../types/index.js';
+import { api } from '../../services/api.js';
 
 interface OverviewViewProps {
   metrics: DashboardMetrics | null;
@@ -32,18 +31,18 @@ interface OverviewViewProps {
 }
 
 const BU_COLORS = [
-  '#3B82F6',
-  '#8B5CF6',
-  '#10B981',
-  '#F59E0B',
-  '#F43F5E',
-  '#06B6D4',
-  '#A855F7',
-  '#84CC16',
-  '#F97316',
-  '#EC4899',
-  '#14B8A6',
-  '#6366F1',
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+  'var(--chart-7)',
+  'var(--chart-8)',
+  'var(--chart-9)',
+  'var(--chart-10)',
+  'var(--chart-11)',
+  'var(--chart-12)',
 ];
 
 const polarPoint = (angle: number, radius: number) => {
@@ -74,11 +73,43 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   recentLogs,
   loading,
   onNavigate,
-  canAccessIncidents = true,
+  onSelectServer,
+  canAccessIncidents = false,
 }) => {
-  const [timeRange, setTimeRange] = useState('Last 24 Hours');
-  const [isTimeRangeOpen, setIsTimeRangeOpen] = useState(false);
   const [hoveredBusinessUnit, setHoveredBusinessUnit] = useState<number | null>(null);
+  const [affectedAssets, setAffectedAssets] = useState<ServerRecord[]>([]);
+  const [affectedLoading, setAffectedLoading] = useState(false);
+
+  useEffect(() => {
+    if (!canAccessIncidents) return;
+    let cancelled = false;
+
+    (async () => {
+      setAffectedLoading(true);
+      try {
+        const incidents = await api.getIncidents();
+        const affectedIds = new Set<string>();
+        for (const incident of incidents) {
+          if (incident.status === 'Closed' || incident.status === 'Archived') continue;
+          for (const id of incident.affected_server_ids ?? []) affectedIds.add(id);
+        }
+        if (affectedIds.size === 0) {
+          if (!cancelled) setAffectedAssets([]);
+          return;
+        }
+        const response = await api.getServers({ limit: 100000 });
+        if (!cancelled) setAffectedAssets(response.items.filter(s => affectedIds.has(s.id)));
+      } catch {
+        if (!cancelled) setAffectedAssets([]);
+      } finally {
+        if (!cancelled) setAffectedLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canAccessIncidents]);
 
   if (loading || !metrics) {
     return (
@@ -220,13 +251,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         >
           <defs>
             <radialGradient id="globe-glow" cx="60%" cy="40%" r="60%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-              <stop offset="60%" stopColor="#1e3a8a" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#070b14" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--accent-2)" stopOpacity="0.4" />
+              <stop offset="60%" stopColor="var(--accent-4)" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="var(--app-bg-solid)" stopOpacity="0" />
             </radialGradient>
             <linearGradient id="orbit-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.1" />
             </linearGradient>
           </defs>
 
@@ -234,76 +265,42 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <circle cx="320" cy="140" r="150" fill="url(#globe-glow)" />
 
           {/* Latitude & Longitude curves */}
-          <ellipse cx="320" cy="140" rx="150" ry="60" stroke="#38bdf8" strokeWidth="0.75" strokeOpacity="0.3" strokeDasharray="4 4" />
-          <ellipse cx="320" cy="140" rx="150" ry="110" stroke="#60a5fa" strokeWidth="0.75" strokeOpacity="0.25" />
-          <ellipse cx="320" cy="140" rx="150" ry="25" stroke="#93c5fd" strokeWidth="0.75" strokeOpacity="0.2" />
-          <ellipse cx="320" cy="140" rx="60" ry="150" stroke="#38bdf8" strokeWidth="0.75" strokeOpacity="0.3" />
-          <ellipse cx="320" cy="140" rx="110" ry="150" stroke="#60a5fa" strokeWidth="0.75" strokeOpacity="0.25" strokeDasharray="6 4" />
+          <ellipse cx="320" cy="140" rx="150" ry="60" stroke="var(--accent-2)" strokeWidth="0.75" strokeOpacity="0.3" strokeDasharray="4 4" />
+          <ellipse cx="320" cy="140" rx="150" ry="110" stroke="var(--accent)" strokeWidth="0.75" strokeOpacity="0.25" />
+          <ellipse cx="320" cy="140" rx="150" ry="25" stroke="var(--accent-3)" strokeWidth="0.75" strokeOpacity="0.2" />
+          <ellipse cx="320" cy="140" rx="60" ry="150" stroke="var(--accent-2)" strokeWidth="0.75" strokeOpacity="0.3" />
+          <ellipse cx="320" cy="140" rx="110" ry="150" stroke="var(--accent)" strokeWidth="0.75" strokeOpacity="0.25" strokeDasharray="6 4" />
 
           {/* Atmospheric orbit rings */}
           <ellipse cx="320" cy="140" rx="175" ry="85" stroke="url(#orbit-grad)" strokeWidth="1" strokeDasharray="8 6" transform="rotate(-18 320 140)" />
 
           {/* Glowing Network Nodes & Interconnects */}
           <g>
-            <line x1="280" y1="110" x2="350" y2="85" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.5" />
-            <line x1="350" y1="85" x2="410" y2="130" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.5" />
-            <line x1="280" y1="110" x2="310" y2="175" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.5" />
-            <line x1="310" y1="175" x2="390" y2="185" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.5" />
-            <line x1="390" y1="185" x2="410" y2="130" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.5" />
+            <line x1="280" y1="110" x2="350" y2="85" stroke="var(--accent-2)" strokeWidth="1" strokeOpacity="0.5" />
+            <line x1="350" y1="85" x2="410" y2="130" stroke="var(--accent-2)" strokeWidth="1" strokeOpacity="0.5" />
+            <line x1="280" y1="110" x2="310" y2="175" stroke="var(--accent-2)" strokeWidth="1" strokeOpacity="0.5" />
+            <line x1="310" y1="175" x2="390" y2="185" stroke="var(--accent-2)" strokeWidth="1" strokeOpacity="0.5" />
+            <line x1="390" y1="185" x2="410" y2="130" stroke="var(--accent-2)" strokeWidth="1" strokeOpacity="0.5" />
 
-            <circle cx="280" cy="110" r="3" fill="#67e8f9" />
-            <circle cx="350" cy="85" r="3.5" fill="#38bdf8" />
-            <circle cx="410" cy="130" r="2.5" fill="#60a5fa" />
-            <circle cx="310" cy="175" r="3" fill="#93c5fd" />
-            <circle cx="390" cy="185" r="3.5" fill="#38bdf8" />
-            <circle cx="240" cy="150" r="2" fill="#38bdf8" />
-            <circle cx="360" cy="220" r="2" fill="#60a5fa" />
+            <circle cx="280" cy="110" r="3" fill="var(--accent-2)" />
+            <circle cx="350" cy="85" r="3.5" fill="var(--accent-2)" />
+            <circle cx="410" cy="130" r="2.5" fill="var(--accent)" />
+            <circle cx="310" cy="175" r="3" fill="var(--accent-3)" />
+            <circle cx="390" cy="185" r="3.5" fill="var(--accent-2)" />
+            <circle cx="240" cy="150" r="2" fill="var(--accent-2)" />
+            <circle cx="360" cy="220" r="2" fill="var(--accent)" />
           </g>
         </svg>
       </div>
 
-      {/* Header: Title, Subtitle, and Time Filter Dropdown (matching reference image) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-sans">
-            Infrastructure Overview
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Real-time visibility of your infrastructure, security posture and ownership
-          </p>
-        </div>
-
-        {/* Date Filter Dropdown */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setIsTimeRangeOpen(!isTimeRangeOpen)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424]/90 border border-slate-700/60 hover:border-slate-600 text-xs font-medium text-slate-200 transition-colors shadow-sm cursor-pointer"
-          >
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span>{timeRange}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />
-          </button>
-
-          {isTimeRangeOpen && (
-            <div className="absolute right-0 mt-2 w-44 rounded-xl bg-[#0e1629] border border-slate-700/70 shadow-2xl py-1.5 z-50 text-xs">
-              {['Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'Year to Date'].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => {
-                    setTimeRange(range);
-                    setIsTimeRangeOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2 hover:bg-white/10 transition-colors flex items-center justify-between ${
-                    timeRange === range ? 'text-blue-400 font-semibold bg-white/5' : 'text-slate-300'
-                  }`}
-                >
-                  <span>{range}</span>
-                  {timeRange === range && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Header: Title and subtitle */}
+      <div className="relative z-10">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-sans">
+          Infrastructure Overview
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          Real-time visibility of your infrastructure, security posture and ownership
+        </p>
       </div>
 
       {/* TOP KPI CARDS ROW (5 Cards: Total Servers, Online, Products, Secure Boot, Ownership Complete) */}
@@ -315,7 +312,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend="↑ 0% vs previous period"
           icon={<Server className="w-4 h-4 text-blue-400" />}
           iconBg="bg-blue-500/20"
-          waveColor="#3B82F6"
+          waveColor="var(--accent)"
           onClick={() => onNavigate('inventory')}
         />
 
@@ -328,7 +325,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend="↑ 0% vs previous period"
           icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
           iconBg="bg-emerald-500/20"
-          waveColor="#10B981"
+          waveColor="var(--color-emerald-400)"
           onClick={() => onNavigate('inventory', { power_state: 'poweredOn' })}
         />
 
@@ -341,7 +338,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend="↑ 0% vs previous period"
           icon={<Package className="w-4 h-4 text-cyan-400" />}
           iconBg="bg-cyan-500/20"
-          waveColor="#06B6D4"
+          waveColor="var(--accent-2)"
           onClick={() => onNavigate('products')}
         />
 
@@ -354,7 +351,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend="↑ 0% vs previous period"
           icon={<Shield className="w-4 h-4 text-purple-400" />}
           iconBg="bg-purple-500/20"
-          waveColor="#8B5CF6"
+          waveColor="var(--accent-3)"
           onClick={() => onNavigate('inventory', { secure_boot: 'TRUE' })}
         />
 
@@ -367,7 +364,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend="↑ 0% vs previous period"
           icon={<ShieldCheck className="w-4 h-4 text-teal-400" />}
           iconBg="bg-teal-500/20"
-          waveColor="#14B8A6"
+          waveColor="var(--accent-2)"
           onClick={() => onNavigate('ownership-explorer')}
         />
       </div>
@@ -379,7 +376,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           {/* Row A: Servers by Business Unit & Product Counts Top 10 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Servers by Business Unit (Horizontal Bar Chart) */}
-            <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-4 flex flex-col lg:h-[340px]">
+            <div className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-4 flex flex-col lg:h-[340px]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
@@ -419,10 +416,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           {bu.count} ({pct}%)
                         </span>
                       </div>
-                      <div className="h-2 w-full bg-slate-800/80 rounded-full overflow-hidden">
+                      <div className="h-2 w-full bg-[var(--chart-track)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full group-hover:from-blue-500 group-hover:to-indigo-400 transition-all duration-300"
-                          style={{ width: `${Math.max(10, pct)}%` }}
+                          className="h-full rounded-full transition-all duration-300 group-hover:brightness-110"
+                          style={{
+                            width: `${Math.max(10, pct)}%`,
+                            backgroundImage: 'linear-gradient(90deg, var(--chart-1), var(--chart-2))',
+                          }}
                         />
                       </div>
                     </div>
@@ -441,7 +441,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             {/* Product Counts as Bar Chart Top 10 (Added as specifically requested!) */}
-            <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-4 flex flex-col lg:h-[340px]">
+            <div className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-4 flex flex-col lg:h-[340px]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
@@ -484,10 +484,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           </span>
                         </div>
                       </div>
-                      <div className="h-2 w-full bg-slate-800/80 rounded-full overflow-hidden">
+                      <div className="h-2 w-full bg-[var(--chart-track)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full group-hover:from-cyan-400 group-hover:to-blue-400 transition-all duration-300"
-                          style={{ width: `${Math.max(10, pct)}%` }}
+                          className="h-full rounded-full transition-all duration-300 group-hover:brightness-110"
+                          style={{
+                            width: `${Math.max(10, pct)}%`,
+                            backgroundImage: 'linear-gradient(90deg, var(--chart-6), var(--chart-1))',
+                          }}
                         />
                       </div>
                     </div>
@@ -509,7 +512,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           {/* Row B: Pie Chart on Power On/Off Servers & Security Posture Donut */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Pie / Donut Chart: Power on / off servers (Added as specifically requested!) */}
-            <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
+            <div className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -536,7 +539,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       cx="50"
                       cy="50"
                       r="38"
-                      stroke="#1e293b"
+                      stroke="var(--chart-track)"
                       strokeWidth="14"
                       fill="transparent"
                     />
@@ -621,7 +624,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             {/* Security Posture Donut Chart (matching reference image) */}
-            <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
+            <div className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
@@ -644,7 +647,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       cx="50"
                       cy="50"
                       r="38"
-                      stroke="#1e293b"
+                      stroke="var(--chart-track)"
                       strokeWidth="14"
                       fill="transparent"
                     />
@@ -710,7 +713,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         {/* Right Column (4 cols): Business Unit distribution + secondary metrics */}
         <div className="lg:col-span-4 space-y-5">
           {/* Servers by Business Unit pie chart */}
-          <div data-testid="bu-pie-card" className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3 flex flex-col lg:h-[340px]">
+          <div data-testid="bu-pie-card" className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3 flex flex-col lg:h-[340px]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -731,7 +734,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <div className="flex-1 min-h-0 flex flex-col sm:flex-row items-center justify-center gap-4 py-1">
               <div className="relative w-36 h-36 shrink-0">
                 <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
-                  <circle cx="100" cy="100" r="63" fill="none" stroke="#1e293b" strokeWidth="30" />
+                  <circle cx="100" cy="100" r="63" fill="none" stroke="var(--chart-track)" strokeWidth="30" />
 
                   {businessUnitTotal > 0 && businessUnitSlices.length === 1 && (() => {
                     const slice = businessUnitSlices[0];
@@ -773,7 +776,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           key={slice.name}
                           d={donutSlicePath(slice.startAngle, slice.endAngle)}
                           fill={slice.color}
-                          stroke="#0D1424"
+                          stroke="var(--chart-hole)"
                           strokeWidth="1.5"
                           opacity={hoveredBusinessUnit === null || hoveredBusinessUnit === index ? 1 : 0.45}
                           onMouseEnter={() => setHoveredBusinessUnit(index)}
@@ -796,7 +799,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       );
                     })}
 
-                  <circle cx="100" cy="100" r="47" fill="#0D1424" />
+                  <circle cx="100" cy="100" r="47" fill="var(--chart-hole)" />
                 </svg>
 
                 <div data-testid="bu-pie-center" className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
@@ -859,8 +862,67 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
+      {/* AFFECTED ASSET TRIAGE — read-only mirror of the incident triage asset list */}
+      {canAccessIncidents && (
+        <div className="relative z-10 p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <Server className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white tracking-wide">Affected Asset Triage</h2>
+                <span className="text-[11px] text-slate-400">Assets across open incidents</span>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate('incident-triage')}
+              className="text-[11px] text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
+            >
+              <span>Open Incident Triage</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          {affectedLoading ? (
+            <p className="text-[11px] text-slate-500 font-mono py-2">Loading affected assets…</p>
+          ) : affectedAssets.length === 0 ? (
+            <p className="text-[11px] text-slate-500 font-mono py-2">No affected assets across open incidents.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10 bg-white/[0.03] text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                    <th className="p-3">Host Identifier</th>
+                    <th className="p-3">VM</th>
+                    <th className="p-3">Primary IP</th>
+                    <th className="p-3">Business Unit</th>
+                    <th className="p-3">Manager</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-mono text-[11px]">
+                  {affectedAssets.map(s => (
+                    <tr
+                      key={s.id}
+                      onClick={() => onSelectServer(s.id)}
+                      className="cursor-pointer hover:bg-white/[0.03] transition-colors"
+                    >
+                      <td className="p-3 font-medium text-white">{s.host}</td>
+                      <td className="p-3 text-slate-300">{s.vm}</td>
+                      <td className="p-3 text-cyan-300">{s.primary_ip_address}</td>
+                      <td className="p-3 text-purple-300 font-sans">{s.business_unit || '—'}</td>
+                      <td className="p-3 text-slate-300 font-sans">{s.manager || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* FULL-WIDTH OPERATIONAL TELEMETRY BAR */}
-      <div className="relative z-10 p-2.5 rounded-xl bg-[#0D1424]/60 border border-slate-800/50 shadow-md backdrop-blur-md">
+      <div className="relative z-10 p-2.5 rounded-xl bg-[var(--surface-1)]/60 border border-slate-800/50 shadow-md backdrop-blur-md">
         <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-white/5">
           <div className="flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-cyan-400" />
@@ -883,248 +945,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
       {/* BOTTOM ROW: Infrastructure Health, Top Risks, Recent Activity (matching reference image) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative z-10">
-        {/* 1. Infrastructure Health with 4 Gauges */}
-        <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-cyan-400" />
-            <h2 className="text-sm font-bold text-white tracking-wide">
-              Infrastructure Health
-            </h2>
-          </div>
 
-          <div className="grid grid-cols-4 gap-2 pt-1 text-center">
-            {/* Availability 100% */}
-            <div className="space-y-1.5 flex flex-col items-center">
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#1e293b"
-                    strokeWidth="3.2"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="3.2"
-                    strokeDasharray="100, 100"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute font-mono text-[11px] font-bold text-white">100%</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium block">Availability</span>
-              <span className="text-[9px] font-mono text-emerald-400">↑ +0%</span>
-            </div>
-
-            {/* Performance 99.8% */}
-            <div className="space-y-1.5 flex flex-col items-center">
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#1e293b"
-                    strokeWidth="3.2"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#06B6D4"
-                    strokeWidth="3.2"
-                    strokeDasharray="99.8, 100"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute font-mono text-[11px] font-bold text-white">99.8%</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium block">Performance</span>
-              <span className="text-[9px] font-mono text-cyan-400">↑ +0.1%</span>
-            </div>
-
-            {/* Patch Level 98% */}
-            <div className="space-y-1.5 flex flex-col items-center">
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#1e293b"
-                    strokeWidth="3.2"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="3.2"
-                    strokeDasharray="98, 100"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute font-mono text-[11px] font-bold text-white">98%</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium block">Patch Level</span>
-              <span className="text-[9px] font-mono text-emerald-400">↑ +0.5%</span>
-            </div>
-
-            {/* Compliance 87% */}
-            <div className="space-y-1.5 flex flex-col items-center">
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#1e293b"
-                    strokeWidth="3.2"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#8B5CF6"
-                    strokeWidth="3.2"
-                    strokeDasharray="87, 100"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute font-mono text-[11px] font-bold text-white">87%</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium block">Compliance</span>
-              <span className="text-[9px] font-mono text-purple-400">↑ +1%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Top Risks (matching reference image) */}
-        <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TriangleAlert className="w-4 h-4 text-rose-400" />
-              <h2 className="text-sm font-bold text-white tracking-wide">
-                Top Risks
-              </h2>
-            </div>
-            {canAccessIncidents && (
-              <button
-                onClick={() => onNavigate('incident-triage')}
-                className="text-xs text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
-              >
-                <span>View All</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-2.5 pt-1">
-            {/* Risk 1 */}
-            {canAccessIncidents && (
-            <div
-              onClick={() => onNavigate('incident-triage')}
-              className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/30 cursor-pointer text-xs group"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="font-mono text-slate-500 text-xs">1</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  High
-                </span>
-                <span className="text-slate-300 group-hover:text-white truncate max-w-[170px]">
-                  1 high severity incident detected
-                </span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">6h ago</span>
-            </div>
-            )}
-
-            {/* Risk 2 */}
-            <div
-              onClick={() => onNavigate('inventory', { secure_boot: 'FALSE' })}
-              className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/30 cursor-pointer text-xs group"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="font-mono text-slate-500 text-xs">2</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Med
-                </span>
-                <span className="text-slate-300 group-hover:text-white truncate max-w-[170px]">
-                  Secure boot disabled (3 servers)
-                </span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">2d ago</span>
-            </div>
-
-            {/* Risk 3 */}
-            <div
-              onClick={() => onNavigate('reports')}
-              className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/30 cursor-pointer text-xs group"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="font-mono text-slate-500 text-xs">3</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Med
-                </span>
-                <span className="text-slate-300 group-hover:text-white truncate max-w-[170px]">
-                  Review ownership metadata
-                </span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">2d ago</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Recent Activity (matching reference image) */}
-        <div className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-blue-400" />
-              <h2 className="text-sm font-bold text-white tracking-wide">
-                Recent Activity
-              </h2>
-            </div>
-            <button
-              onClick={() => onNavigate('settings')}
-              className="text-xs text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="space-y-2.5 pt-1 text-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
-                <span className="text-slate-300 truncate">Ownership updated for 1 server</span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">2h ago</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                <span className="text-slate-300 truncate">Secure boot status updated</span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">4h ago</span>
-            </div>
-
-            {canAccessIncidents && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
-                <span className="text-slate-300 truncate">1 high severity incident detected</span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">6h ago</span>
-            </div>
-            )}
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
-                <span className="text-slate-300 truncate">New server added to Central BU</span>
-              </div>
-              <span className="font-mono text-[11px] text-slate-500 shrink-0">1d ago</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1155,7 +976,7 @@ const TopKpiCard: React.FC<{
   return (
     <div
       onClick={onClick}
-      className="p-5 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 hover:border-slate-700/80 hover:bg-[#10192e]/90 transition-all duration-300 shadow-xl backdrop-blur-md cursor-pointer relative overflow-hidden group select-none flex flex-col justify-between h-[155px]"
+      className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 hover:border-slate-700/80 hover:bg-[var(--surface-2)]/90 transition-all duration-300 shadow-xl backdrop-blur-md cursor-pointer relative overflow-hidden group select-none flex flex-col justify-between h-[155px]"
     >
       <div>
         {/* Top row: Icon on left, Label on right */}

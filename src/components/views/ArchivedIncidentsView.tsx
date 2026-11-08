@@ -164,7 +164,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#0D1424]/90 border border-slate-800/80 shadow-xl backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--surface-1)]/90 border border-slate-800/80 shadow-xl backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
             <FolderArchive className="w-5 h-5" />
@@ -199,7 +199,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
               </button>
 
               {exportDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#0e1629] border border-slate-700/80 shadow-2xl py-1.5 z-50 text-xs font-sans">
+                <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[var(--surface-1)] border border-slate-700/80 shadow-2xl py-1.5 z-50 text-xs font-sans">
                   <div className="px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 border-b border-white/5">
                     Select Report Format:
                   </div>
@@ -264,7 +264,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
               className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-mono transition-all shrink-0 cursor-pointer ${
                 selectedIncidentId === inc.id
                   ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 shadow-md'
-                  : 'bg-[#0D1424]/70 border-slate-800 text-slate-400 hover:text-slate-200'
+                  : 'bg-[var(--surface-1)]/70 border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -274,7 +274,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
           ))}
         </div>
       ) : (
-        <div className="p-8 rounded-2xl bg-[#0D1424]/80 border border-slate-800/80 text-center space-y-3">
+        <div className="p-8 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 text-center space-y-3">
           <FolderArchive className="w-10 h-10 text-slate-500 mx-auto" />
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-white">No Archived Incidents</h3>
@@ -322,7 +322,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
           {/* Remediation Gauge & Operational Statistics */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
             {/* Patched Systems Gauge Card */}
-            <div className="lg:col-span-4 p-4 rounded-xl border border-emerald-500/30 bg-[#0d1424]/90 select-none flex flex-col justify-between shadow-lg">
+            <div className="lg:col-span-4 p-4 rounded-xl border border-emerald-500/30 bg-[var(--surface-1)]/90 select-none flex flex-col justify-between shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -342,7 +342,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
                     <path
                       d="M 15 65 A 45 45 0 0 1 105 65"
                       fill="none"
-                      stroke="#1e293b"
+                      stroke="var(--chart-track)"
                       strokeWidth="10"
                       strokeLinecap="round"
                     />
@@ -382,7 +382,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
             </div>
 
             {/* Simpler Text Statistics Panel */}
-            <div className="lg:col-span-8 p-4 rounded-xl bg-[#0d1424]/70 border border-slate-800/80 backdrop-blur-md flex flex-col justify-between space-y-3">
+            <div className="lg:col-span-8 p-4 rounded-xl bg-[var(--surface-1)]/70 border border-slate-800/80 backdrop-blur-md flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
                 <span className="text-xs font-bold text-slate-200 tracking-wide font-sans">
                   Archived Incident Telemetry & Posture
@@ -440,7 +440,7 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
           </div>
 
           {/* Host Remediation Inventory Table */}
-          <div className="p-4 rounded-xl bg-[#0D1424]/90 border border-slate-800/80 shadow-xl space-y-3">
+          <div className="p-4 rounded-xl bg-[var(--surface-1)]/90 border border-slate-800/80 shadow-xl space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Server className="w-4 h-4 text-blue-400" />

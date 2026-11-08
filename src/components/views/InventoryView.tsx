@@ -399,7 +399,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           <div
             ref={dropdownRef}
             onClick={(e) => e.stopPropagation()}
-            className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-1.5 min-w-[250px] max-w-[310px] bg-[#0D1527] border border-slate-700/80 rounded-xl shadow-2xl p-3 z-50 text-xs font-sans space-y-2.5 animate-in fade-in zoom-in-95 duration-150`}
+            className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-1.5 min-w-[250px] max-w-[310px] bg-[var(--surface-1)] border border-slate-700/80 rounded-xl shadow-2xl p-3 z-50 text-xs font-sans space-y-2.5 animate-in fade-in zoom-in-95 duration-150`}
             style={{ colorScheme: 'dark' }}
           >
             {/* Header info */}
@@ -489,7 +489,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     value={columnSearchQuery}
                     onChange={(e) => setColumnSearchQuery(e.target.value)}
                     placeholder={`Search ${label}...`}
-                    className="w-full pl-7 pr-2.5 py-1 text-[11px] rounded-lg bg-[#0B1223] border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
+                    className="w-full pl-7 pr-2.5 py-1 text-[11px] rounded-lg bg-[var(--surface-1)] border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               )}
@@ -614,7 +614,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <span>Columns</span>
             </button>
             {showColumnPicker && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-[#111827] border border-white/15 rounded-xl shadow-2xl p-3 z-40 space-y-2">
+              <div className="absolute right-0 top-full mt-2 w-56 bg-[var(--surface-2)] border border-white/15 rounded-xl shadow-2xl p-3 z-40 space-y-2">
                 <div className="flex items-center justify-between pb-1 border-b border-white/10 text-xs font-mono font-semibold uppercase text-slate-300">
                   <span>Toggle Columns</span>
                   <button onClick={() => setShowColumnPicker(false)}>
@@ -952,13 +952,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="bg-[#0B1223] border border-slate-700/80 rounded px-2 py-0.5 text-white font-mono text-xs cursor-pointer focus:outline-none focus:border-blue-400"
+              className="bg-[var(--surface-1)] border border-slate-700/80 rounded px-2 py-0.5 text-white font-mono text-xs cursor-pointer focus:outline-none focus:border-blue-400"
               style={{ colorScheme: 'dark' }}
             >
-              <option value={10} className="bg-[#0B1223] text-white">10</option>
-              <option value={25} className="bg-[#0B1223] text-white">25</option>
-              <option value={50} className="bg-[#0B1223] text-white">50</option>
-              <option value={100} className="bg-[#0B1223] text-white">100</option>
+              <option value={10} className="bg-[var(--surface-1)] text-white">10</option>
+              <option value={25} className="bg-[var(--surface-1)] text-white">25</option>
+              <option value={50} className="bg-[var(--surface-1)] text-white">50</option>
+              <option value={100} className="bg-[var(--surface-1)] text-white">100</option>
             </select>
           </div>
 

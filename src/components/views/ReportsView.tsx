@@ -412,7 +412,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
               <div className="overflow-auto max-h-[560px] rounded-lg border border-white/5">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-10">
-                    <tr className="bg-[#0b1120] border-b border-white/10 text-[10px] font-mono text-slate-400 uppercase">
+                    <tr className="bg-[var(--surface-2)] border-b border-white/10 text-[10px] font-mono text-slate-400 uppercase">
                       {activeDefinition.columns.map(column => (
                         <th
                           key={column.key}

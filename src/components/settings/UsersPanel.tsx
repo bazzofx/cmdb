@@ -134,7 +134,7 @@ export const UsersPanel: React.FC = () => {
           <select
             value={role}
             onChange={event => setRole(event.target.value as UserRole)}
-            className="px-2.5 py-1.5 rounded bg-[#0b1120] border border-white/10 text-xs text-white"
+            className="px-2.5 py-1.5 rounded bg-[var(--surface-2)] border border-white/10 text-xs text-white"
           >
             {ROLES.map(item => (
               <option key={item} value={item}>{item}</option>
@@ -184,7 +184,7 @@ export const UsersPanel: React.FC = () => {
                     className={`px-1.5 py-0.5 rounded border text-[10px] bg-transparent ${roleClass[user.role]}`}
                   >
                     {ROLES.map(item => (
-                      <option key={item} value={item} className="bg-[#0b1120] text-white">{item}</option>
+                      <option key={item} value={item} className="bg-[var(--surface-2)] text-white">{item}</option>
                     ))}
                   </select>
                 </td>

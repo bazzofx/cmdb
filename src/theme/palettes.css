@@ -1,0 +1,660 @@
+/* ---------------------------------------------------------------------------
+   Colour palettes
+   ---------------------------------------------------------------------------
+   Tailwind v4 utilities read the --color-* custom properties. Remapping those
+   scales here re-themes every existing background, text and border utility
+   without editing each view. The "default" palette intentionally leaves
+   Tailwind's original scales untouched, so the pre-existing navy/blue scheme
+   is exact.
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+
+  --app-bg: #070b14;
+  --app-bg-solid: #070b14;
+  --surface-1: #0d1424;
+  --surface-2: #111827;
+  --surface-3: #0f172a;
+  --text-primary: #e8edf7;
+  --text-secondary: #8996ae;
+
+  --accent: #2563eb;
+  --accent-2: #0891b2;
+  --accent-3: #7c3aed;
+  --accent-4: #4f46e5;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #04121a;
+  --accent-glow: color-mix(in srgb, var(--accent) 24%, transparent);
+  --neutral: #64748b;
+
+  --panel-bg: rgba(255, 255, 255, 0.03);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-hover-bg: rgba(255, 255, 255, 0.05);
+  --panel-hover-border: rgba(255, 255, 255, 0.14);
+  --scroll-track: rgba(11, 16, 32, 0.6);
+  --scroll-thumb: rgba(255, 255, 255, 0.15);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Chart series, tracks and donut holes. */
+  --chart-1: #3b82f6;
+  --chart-2: #8b5cf6;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #f43f5e;
+  --chart-6: #06b6d4;
+  --chart-7: #a855f7;
+  --chart-8: #84cc16;
+  --chart-9: #f97316;
+  --chart-10: #ec4899;
+  --chart-11: #14b8a6;
+  --chart-12: #6366f1;
+  --chart-track: #1e293b;
+  --chart-hole: #0d1424;
+
+  /* Bottom-left sidebar illustration. */
+  --art-bg-from: #0b1329;
+  --art-bg-via: #091024;
+  --art-border: rgba(59, 130, 246, 0.1);
+  --art-far: #0f172a;
+  --art-near-top: #1e293b;
+  --art-near-bottom: #070b14;
+  --art-silhouette: #070b14;
+  --art-star: rgba(255, 255, 255, 0.65);
+  --art-glow: rgba(34, 211, 238, 0.2);
+  --art-accent: rgba(165, 243, 252, 0.7);
+}
+
+/* ---- Palette definitions ------------------------------------------------- */
+
+[data-theme="default"] {
+  color-scheme: dark;
+  --app-bg: #070b14;
+  --app-bg-solid: #070b14;
+  --surface-1: #0d1424;
+  --surface-2: #111827;
+  --surface-3: #0f172a;
+  --text-primary: #e8edf7;
+  --text-secondary: #8996ae;
+  --accent: #2563eb;
+  --accent-2: #0891b2;
+  --accent-3: #7c3aed;
+  --accent-4: #4f46e5;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #04121a;
+  --accent-glow: color-mix(in srgb, var(--accent) 24%, transparent);
+  --neutral: #64748b;
+  --panel-bg: rgba(255, 255, 255, 0.03);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-hover-bg: rgba(255, 255, 255, 0.05);
+  --panel-hover-border: rgba(255, 255, 255, 0.14);
+  --scroll-track: rgba(11, 16, 32, 0.6);
+  --scroll-thumb: rgba(255, 255, 255, 0.15);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="steel"] {
+  color-scheme: dark;
+  --app-bg: #0a0f14;
+  --app-bg-solid: #0a0f14;
+  --surface-1: #101820;
+  --surface-2: #15222d;
+  --surface-3: #1b2b38;
+  --text-primary: #eaf2f8;
+  --text-secondary: #93a9ba;
+  --accent: #3e6f96;
+  --accent-2: #ff5a1f;
+  --accent-3: #7fa6c4;
+  --accent-4: #5b8fb9;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #2a0d02;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 26%, transparent);
+  --neutral: #8fa3b3;
+  --panel-bg: rgba(180, 214, 238, 0.045);
+  --panel-border: rgba(180, 214, 238, 0.11);
+  --panel-hover-bg: rgba(180, 214, 238, 0.075);
+  --panel-hover-border: rgba(255, 138, 76, 0.28);
+  --scroll-track: rgba(8, 13, 18, 0.7);
+  --scroll-thumb: rgba(143, 163, 179, 0.3);
+  --scroll-thumb-hover: rgba(255, 138, 76, 0.45);
+  --color-white: #f4f8fb;
+  --color-black: #000000;
+  --chart-track: #22323f;
+  --chart-hole: #101820;
+}
+
+[data-theme="x3000"] {
+  color-scheme: dark;
+  --app-bg: #08090a;
+  --app-bg-solid: #08090a;
+  --surface-1: #111214;
+  --surface-2: #17191c;
+  --surface-3: #1e2125;
+  --text-primary: #e6e8ea;
+  --text-secondary: #9ba1a7;
+  --accent: #6b7480;
+  --accent-2: #ff2d95;
+  --accent-3: #c0c6cc;
+  --accent-4: #8e959e;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #24000f;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 22%, transparent);
+  --neutral: #a6adb4;
+  --panel-bg: rgba(214, 218, 222, 0.04);
+  --panel-border: rgba(214, 218, 222, 0.12);
+  --panel-hover-bg: rgba(214, 218, 222, 0.07);
+  --panel-hover-border: rgba(255, 45, 149, 0.3);
+  --scroll-track: rgba(8, 9, 10, 0.72);
+  --scroll-thumb: rgba(166, 173, 180, 0.3);
+  --scroll-thumb-hover: rgba(255, 45, 149, 0.45);
+  --color-white: #f2f3f4;
+  --color-black: #050506;
+  --chart-track: #2a2d31;
+  --chart-hole: #111214;
+}
+
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --app-bg: #020604;
+  --app-bg-solid: #020604;
+  --surface-1: #06110b;
+  --surface-2: #0a1a12;
+  --surface-3: #0d2418;
+  --text-primary: #e6ffef;
+  --text-secondary: #8fb8a1;
+  --accent: #15803d;
+  --accent-2: #39ff14;
+  --accent-3: #00e5a0;
+  --accent-4: #22c55e;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #03140a;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 24%, transparent);
+  --neutral: #8fc7a6;
+  --panel-bg: rgba(57, 255, 20, 0.035);
+  --panel-border: rgba(57, 255, 20, 0.12);
+  --panel-hover-bg: rgba(57, 255, 20, 0.06);
+  --panel-hover-border: rgba(57, 255, 20, 0.3);
+  --scroll-track: rgba(2, 6, 4, 0.75);
+  --scroll-thumb: rgba(57, 255, 20, 0.26);
+  --scroll-thumb-hover: rgba(57, 255, 20, 0.45);
+  --color-white: #eafff1;
+  --color-black: #000000;
+  --chart-track: #12301f;
+  --chart-hole: #06110b;
+}
+
+[data-theme="morning"] {
+  color-scheme: light;
+  --app-bg: #f6f1e7;
+  --app-bg-solid: #f6f1e7;
+  --surface-1: #fffdf8;
+  --surface-2: #ede4d3;
+  --surface-3: #e3d8c3;
+  --text-primary: #2b2b2b;
+  --text-secondary: #6b6257;
+  --accent: #2f6f9f;
+  --accent-2: #d97706;
+  --accent-3: #7c5cbf;
+  --accent-4: #3b72b8;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #241200;
+  --accent-glow: color-mix(in srgb, var(--accent) 18%, transparent);
+  --neutral: #6b6257;
+  --panel-bg: rgba(255, 253, 248, 0.72);
+  --panel-border: rgba(43, 43, 43, 0.12);
+  --panel-hover-bg: rgba(255, 255, 255, 0.9);
+  --panel-hover-border: rgba(47, 111, 159, 0.28);
+  --scroll-track: rgba(107, 98, 87, 0.14);
+  --scroll-thumb: rgba(43, 43, 43, 0.24);
+  --scroll-thumb-hover: rgba(43, 43, 43, 0.38);
+  --color-white: #1f1b16;
+  --color-black: #000000;
+
+  /* A deliberately light chart palette: sea blue, amber, sage and clay. */
+  --chart-1: #2f6f9f;
+  --chart-2: #d97706;
+  --chart-3: #6f8f6a;
+  --chart-4: #b45309;
+  --chart-5: #b05a6b;
+  --chart-6: #4f8a8a;
+  --chart-7: #7c5cbf;
+  --chart-8: #8a9a5b;
+  --chart-9: #c97b3d;
+  --chart-10: #a35d8a;
+  --chart-11: #5f8f86;
+  --chart-12: #5b6fa8;
+  --chart-track: #e7decd;
+  --chart-hole: #fffdf8;
+
+  /* Morning sidebar artwork: pale sky over warm hills. */
+  --art-bg-from: #e9dfcf;
+  --art-bg-via: #f4ede0;
+  --art-border: rgba(47, 111, 159, 0.16);
+  --art-far: #d7cab6;
+  --art-near-top: #b8a78f;
+  --art-near-bottom: #8c7b64;
+  --art-silhouette: #5a4f42;
+  --art-star: rgba(180, 83, 9, 0.75);
+  --art-glow: rgba(217, 119, 6, 0.25);
+  --art-accent: rgba(180, 83, 9, 0.55);
+}
+
+[data-theme="coffee"] {
+  color-scheme: dark;
+  --app-bg: #1a120c;
+  --app-bg-solid: #1a120c;
+  --surface-1: #241810;
+  --surface-2: #2e2017;
+  --surface-3: #3a291d;
+  --text-primary: #f3e8d8;
+  --text-secondary: #c4ae94;
+  --accent: #8a5a3b;
+  --accent-2: #e8c77a;
+  --accent-3: #d9b08c;
+  --accent-4: #a9714b;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #2a1d08;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  --neutral: #c9b49a;
+  --panel-bg: rgba(255, 240, 214, 0.04);
+  --panel-border: rgba(255, 240, 214, 0.11);
+  --panel-hover-bg: rgba(255, 240, 214, 0.07);
+  --panel-hover-border: rgba(232, 199, 122, 0.28);
+  --scroll-track: rgba(20, 13, 8, 0.75);
+  --scroll-thumb: rgba(232, 199, 122, 0.24);
+  --scroll-thumb-hover: rgba(232, 199, 122, 0.42);
+  --color-white: #fff8ec;
+  --color-black: #120b06;
+  --chart-track: #4a382a;
+  --chart-hole: #241810;
+  --art-bg-from: #2a1c13;
+  --art-bg-via: #1d130d;
+  --art-border: rgba(232, 199, 122, 0.14);
+  --art-far: #3a291d;
+  --art-near-top: #4a3323;
+  --art-near-bottom: #1a120c;
+  --art-silhouette: #120b06;
+  --art-star: rgba(232, 199, 122, 0.6);
+  --art-glow: rgba(232, 199, 122, 0.18);
+  --art-accent: rgba(232, 199, 122, 0.5);
+}
+
+[data-theme="cyber"] {
+  color-scheme: dark;
+  --app-bg: rgba(5, 1, 13, 0.62);
+  --app-bg-solid: #05010d;
+  --surface-1: rgba(11, 6, 32, 0.68);
+  --surface-2: rgba(18, 10, 46, 0.76);
+  --surface-3: rgba(24, 14, 61, 0.82);
+  --text-primary: #ede9fe;
+  --text-secondary: #a5b4fc;
+  --accent: #7c3aed;
+  --accent-2: #22d3ee;
+  --accent-3: #f0abfc;
+  --accent-4: #6366f1;
+  --accent-contrast: #ffffff;
+  --accent-2-contrast: #04121a;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 30%, transparent);
+  --neutral: #a9b6ff;
+  --panel-bg: rgba(124, 58, 237, 0.07);
+  --panel-border: rgba(34, 211, 238, 0.14);
+  --panel-hover-bg: rgba(124, 58, 237, 0.12);
+  --panel-hover-border: rgba(240, 171, 252, 0.35);
+  --scroll-track: rgba(5, 1, 13, 0.7);
+  --scroll-thumb: rgba(34, 211, 238, 0.28);
+  --scroll-thumb-hover: rgba(240, 171, 252, 0.5);
+  --color-white: #f5f3ff;
+  --color-black: #000000;
+  --chart-track: rgba(124, 58, 237, 0.24);
+  --chart-hole: rgba(11, 6, 32, 0.92);
+  --art-bg-from: #120a2e;
+  --art-bg-via: #0b0620;
+  --art-border: rgba(34, 211, 238, 0.15);
+  --art-far: #1a0f3d;
+  --art-near-top: #2a165c;
+  --art-near-bottom: #05010d;
+  --art-silhouette: #05010d;
+  --art-star: rgba(240, 171, 252, 0.75);
+  --art-glow: rgba(34, 211, 238, 0.22);
+  --art-accent: rgba(34, 211, 238, 0.6);
+}
+
+/* ---- Shared accent + neutral scales ------------------------------------- */
+/* The default palette keeps Tailwind's built-in scales untouched. */
+
+[data-theme="steel"],
+[data-theme="x3000"],
+[data-theme="midnight"],
+[data-theme="morning"],
+[data-theme="coffee"],
+[data-theme="cyber"] {
+  --color-blue-50: color-mix(in srgb, var(--accent) 8%, white);
+  --color-blue-100: color-mix(in srgb, var(--accent) 17%, white);
+  --color-blue-200: color-mix(in srgb, var(--accent) 30%, white);
+  --color-blue-300: color-mix(in srgb, var(--accent) 46%, white);
+  --color-blue-400: color-mix(in srgb, var(--accent) 66%, white);
+  --color-blue-500: color-mix(in srgb, var(--accent) 86%, white);
+  --color-blue-600: var(--accent);
+  --color-blue-700: color-mix(in srgb, var(--accent) 76%, black);
+  --color-blue-800: color-mix(in srgb, var(--accent) 60%, black);
+  --color-blue-900: color-mix(in srgb, var(--accent) 44%, black);
+  --color-blue-950: color-mix(in srgb, var(--accent) 30%, black);
+
+  --color-cyan-50: color-mix(in srgb, var(--accent-2) 8%, white);
+  --color-cyan-100: color-mix(in srgb, var(--accent-2) 17%, white);
+  --color-cyan-200: color-mix(in srgb, var(--accent-2) 30%, white);
+  --color-cyan-300: color-mix(in srgb, var(--accent-2) 46%, white);
+  --color-cyan-400: color-mix(in srgb, var(--accent-2) 66%, white);
+  --color-cyan-500: color-mix(in srgb, var(--accent-2) 86%, white);
+  --color-cyan-600: var(--accent-2);
+  --color-cyan-700: color-mix(in srgb, var(--accent-2) 76%, black);
+  --color-cyan-800: color-mix(in srgb, var(--accent-2) 60%, black);
+  --color-cyan-900: color-mix(in srgb, var(--accent-2) 44%, black);
+  --color-cyan-950: color-mix(in srgb, var(--accent-2) 30%, black);
+
+  --color-indigo-50: color-mix(in srgb, var(--accent-4) 8%, white);
+  --color-indigo-100: color-mix(in srgb, var(--accent-4) 17%, white);
+  --color-indigo-200: color-mix(in srgb, var(--accent-4) 30%, white);
+  --color-indigo-300: color-mix(in srgb, var(--accent-4) 46%, white);
+  --color-indigo-400: color-mix(in srgb, var(--accent-4) 66%, white);
+  --color-indigo-500: color-mix(in srgb, var(--accent-4) 86%, white);
+  --color-indigo-600: var(--accent-4);
+  --color-indigo-700: color-mix(in srgb, var(--accent-4) 76%, black);
+  --color-indigo-800: color-mix(in srgb, var(--accent-4) 60%, black);
+  --color-indigo-900: color-mix(in srgb, var(--accent-4) 44%, black);
+  --color-indigo-950: color-mix(in srgb, var(--accent-4) 30%, black);
+
+  --color-purple-50: color-mix(in srgb, var(--accent-3) 8%, white);
+  --color-purple-100: color-mix(in srgb, var(--accent-3) 17%, white);
+  --color-purple-200: color-mix(in srgb, var(--accent-3) 30%, white);
+  --color-purple-300: color-mix(in srgb, var(--accent-3) 46%, white);
+  --color-purple-400: color-mix(in srgb, var(--accent-3) 66%, white);
+  --color-purple-500: color-mix(in srgb, var(--accent-3) 86%, white);
+  --color-purple-600: var(--accent-3);
+  --color-purple-700: color-mix(in srgb, var(--accent-3) 76%, black);
+  --color-purple-800: color-mix(in srgb, var(--accent-3) 60%, black);
+  --color-purple-900: color-mix(in srgb, var(--accent-3) 44%, black);
+  --color-purple-950: color-mix(in srgb, var(--accent-3) 30%, black);
+
+  /* Aliases used by a handful of views. */
+  --color-sky-50: var(--color-blue-50);
+  --color-sky-100: var(--color-blue-100);
+  --color-sky-200: var(--color-blue-200);
+  --color-sky-300: var(--color-blue-300);
+  --color-sky-400: var(--color-blue-400);
+  --color-sky-500: var(--color-blue-500);
+  --color-sky-600: var(--color-blue-600);
+  --color-sky-700: var(--color-blue-700);
+  --color-sky-800: var(--color-blue-800);
+  --color-sky-900: var(--color-blue-900);
+  --color-sky-950: var(--color-blue-950);
+
+  --color-teal-50: var(--color-cyan-50);
+  --color-teal-100: var(--color-cyan-100);
+  --color-teal-200: var(--color-cyan-200);
+  --color-teal-300: var(--color-cyan-300);
+  --color-teal-400: var(--color-cyan-400);
+  --color-teal-500: var(--color-cyan-500);
+  --color-teal-600: var(--color-cyan-600);
+  --color-teal-700: var(--color-cyan-700);
+  --color-teal-800: var(--color-cyan-800);
+  --color-teal-900: var(--color-cyan-900);
+  --color-teal-950: var(--color-cyan-950);
+
+  --color-orange-50: var(--color-cyan-50);
+  --color-orange-100: var(--color-cyan-100);
+  --color-orange-200: var(--color-cyan-200);
+  --color-orange-300: var(--color-cyan-300);
+  --color-orange-400: var(--color-cyan-400);
+  --color-orange-500: var(--color-cyan-500);
+  --color-orange-600: var(--color-cyan-600);
+  --color-orange-700: var(--color-cyan-700);
+  --color-orange-800: var(--color-cyan-800);
+  --color-orange-900: var(--color-cyan-900);
+  --color-orange-950: var(--color-cyan-950);
+
+  --color-violet-50: var(--color-purple-50);
+  --color-violet-100: var(--color-purple-100);
+  --color-violet-200: var(--color-purple-200);
+  --color-violet-300: var(--color-purple-300);
+  --color-violet-400: var(--color-purple-400);
+  --color-violet-500: var(--color-purple-500);
+  --color-violet-600: var(--color-purple-600);
+  --color-violet-700: var(--color-purple-700);
+  --color-violet-800: var(--color-purple-800);
+  --color-violet-900: var(--color-purple-900);
+  --color-violet-950: var(--color-purple-950);
+
+  --color-fuchsia-50: var(--color-purple-50);
+  --color-fuchsia-100: var(--color-purple-100);
+  --color-fuchsia-200: var(--color-purple-200);
+  --color-fuchsia-300: var(--color-purple-300);
+  --color-fuchsia-400: var(--color-purple-400);
+  --color-fuchsia-500: var(--color-purple-500);
+  --color-fuchsia-600: var(--color-purple-600);
+  --color-fuchsia-700: var(--color-purple-700);
+  --color-fuchsia-800: var(--color-purple-800);
+  --color-fuchsia-900: var(--color-purple-900);
+  --color-fuchsia-950: var(--color-purple-950);
+
+  --color-slate-50: color-mix(in srgb, var(--neutral) 8%, white);
+  --color-slate-100: color-mix(in srgb, var(--neutral) 16%, white);
+  --color-slate-200: color-mix(in srgb, var(--neutral) 30%, white);
+  --color-slate-300: color-mix(in srgb, var(--neutral) 46%, white);
+  --color-slate-400: color-mix(in srgb, var(--neutral) 62%, white);
+  --color-slate-500: color-mix(in srgb, var(--neutral) 77%, white);
+  --color-slate-600: var(--neutral);
+  --color-slate-700: color-mix(in srgb, var(--neutral) 78%, black);
+  --color-slate-800: color-mix(in srgb, var(--neutral) 62%, black);
+  --color-slate-900: color-mix(in srgb, var(--neutral) 45%, black);
+  --color-slate-950: color-mix(in srgb, var(--neutral) 30%, black);
+}
+
+/* Morning is the light palette: reverse the neutral and accent ramps so text
+   utilities stay dark on paper and surface utilities stay light. */
+[data-theme="morning"] {
+  --color-slate-50: color-mix(in srgb, var(--neutral) 20%, black);
+  --color-slate-100: color-mix(in srgb, var(--neutral) 32%, black);
+  --color-slate-200: color-mix(in srgb, var(--neutral) 45%, black);
+  --color-slate-300: color-mix(in srgb, var(--neutral) 60%, black);
+  --color-slate-400: color-mix(in srgb, var(--neutral) 75%, black);
+  --color-slate-500: color-mix(in srgb, var(--neutral) 90%, black);
+  --color-slate-600: color-mix(in srgb, var(--neutral) 78%, white);
+  --color-slate-700: color-mix(in srgb, var(--neutral) 62%, white);
+  --color-slate-800: color-mix(in srgb, var(--neutral) 46%, white);
+  --color-slate-900: color-mix(in srgb, var(--neutral) 30%, white);
+  --color-slate-950: color-mix(in srgb, var(--neutral) 16%, white);
+
+  --color-blue-50: color-mix(in srgb, var(--accent) 10%, white);
+  --color-blue-100: color-mix(in srgb, var(--accent) 18%, white);
+  --color-blue-200: color-mix(in srgb, var(--accent) 60%, black);
+  --color-blue-300: color-mix(in srgb, var(--accent) 72%, black);
+  --color-blue-400: color-mix(in srgb, var(--accent) 85%, black);
+  --color-blue-500: color-mix(in srgb, var(--accent) 95%, black);
+  --color-blue-600: color-mix(in srgb, var(--accent) 82%, black);
+  --color-blue-700: color-mix(in srgb, var(--accent) 68%, black);
+  --color-blue-800: color-mix(in srgb, var(--accent) 54%, black);
+  --color-blue-900: color-mix(in srgb, var(--accent) 42%, black);
+  --color-blue-950: color-mix(in srgb, var(--accent) 32%, black);
+
+  --color-cyan-50: color-mix(in srgb, var(--accent-2) 10%, white);
+  --color-cyan-100: color-mix(in srgb, var(--accent-2) 18%, white);
+  --color-cyan-200: color-mix(in srgb, var(--accent-2) 60%, black);
+  --color-cyan-300: color-mix(in srgb, var(--accent-2) 72%, black);
+  --color-cyan-400: color-mix(in srgb, var(--accent-2) 85%, black);
+  --color-cyan-500: color-mix(in srgb, var(--accent-2) 95%, black);
+  --color-cyan-600: color-mix(in srgb, var(--accent-2) 82%, black);
+  --color-cyan-700: color-mix(in srgb, var(--accent-2) 68%, black);
+  --color-cyan-800: color-mix(in srgb, var(--accent-2) 54%, black);
+  --color-cyan-900: color-mix(in srgb, var(--accent-2) 42%, black);
+  --color-cyan-950: color-mix(in srgb, var(--accent-2) 32%, black);
+
+  --color-indigo-50: color-mix(in srgb, var(--accent-4) 10%, white);
+  --color-indigo-100: color-mix(in srgb, var(--accent-4) 18%, white);
+  --color-indigo-200: color-mix(in srgb, var(--accent-4) 60%, black);
+  --color-indigo-300: color-mix(in srgb, var(--accent-4) 72%, black);
+  --color-indigo-400: color-mix(in srgb, var(--accent-4) 85%, black);
+  --color-indigo-500: color-mix(in srgb, var(--accent-4) 95%, black);
+  --color-indigo-600: color-mix(in srgb, var(--accent-4) 82%, black);
+  --color-indigo-700: color-mix(in srgb, var(--accent-4) 68%, black);
+  --color-indigo-800: color-mix(in srgb, var(--accent-4) 54%, black);
+  --color-indigo-900: color-mix(in srgb, var(--accent-4) 42%, black);
+  --color-indigo-950: color-mix(in srgb, var(--accent-4) 32%, black);
+
+  --color-purple-50: color-mix(in srgb, var(--accent-3) 10%, white);
+  --color-purple-100: color-mix(in srgb, var(--accent-3) 18%, white);
+  --color-purple-200: color-mix(in srgb, var(--accent-3) 60%, black);
+  --color-purple-300: color-mix(in srgb, var(--accent-3) 72%, black);
+  --color-purple-400: color-mix(in srgb, var(--accent-3) 85%, black);
+  --color-purple-500: color-mix(in srgb, var(--accent-3) 95%, black);
+  --color-purple-600: color-mix(in srgb, var(--accent-3) 82%, black);
+  --color-purple-700: color-mix(in srgb, var(--accent-3) 68%, black);
+  --color-purple-800: color-mix(in srgb, var(--accent-3) 54%, black);
+  --color-purple-900: color-mix(in srgb, var(--accent-3) 42%, black);
+  --color-purple-950: color-mix(in srgb, var(--accent-3) 32%, black);
+
+  --color-emerald-100: #064e3b;
+  --color-emerald-200: #065f46;
+  --color-emerald-300: #047857;
+  --color-emerald-400: #059669;
+  --color-emerald-500: #10b981;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  --color-amber-500: #f59e0b;
+  --color-rose-100: #881337;
+  --color-rose-200: #9f1239;
+  --color-rose-300: #be123c;
+  --color-rose-400: #e11d48;
+  --color-rose-500: #f43f5e;
+}
+
+/* Keep white (or dark) text readable on solid accent buttons. */
+[data-theme] :is(.bg-blue-500, .bg-blue-600, .bg-blue-700).text-white {
+  color: var(--accent-contrast);
+}
+[data-theme] :is(.bg-blue-500, .bg-blue-600, .bg-blue-700) .text-white {
+  color: var(--accent-contrast);
+}
+[data-theme] :is(.bg-cyan-500, .bg-cyan-600, .bg-orange-500, .bg-orange-600).text-white {
+  color: var(--accent-2-contrast);
+}
+[data-theme] :is(.bg-cyan-500, .bg-cyan-600, .bg-orange-500, .bg-orange-600) .text-white {
+  color: var(--accent-2-contrast);
+}
+
+/* ---- Sidebar illustration ------------------------------------------------- */
+
+.sidebar-art {
+  background-image: linear-gradient(to top, var(--art-bg-from), var(--art-bg-via), transparent);
+  border-color: var(--art-border);
+}
+
+.sidebar-art .art-glow {
+  background-color: var(--art-glow);
+}
+
+.sidebar-art .art-crescent {
+  border-color: var(--art-accent);
+}
+
+.sidebar-art .art-star {
+  background-color: var(--art-star);
+}
+
+.sidebar-art .art-silhouette {
+  color: var(--art-silhouette);
+}
+
+/* ---- Cyber atmosphere & motion ------------------------------------------ */
+
+.cyber-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  animation: cyber-atmosphere-in 1.2s ease forwards;
+}
+
+[data-theme="cyber"] body {
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(124, 58, 237, 0.16), transparent 42%),
+    radial-gradient(circle at 85% 20%, rgba(34, 211, 238, 0.12), transparent 38%),
+    radial-gradient(circle at 55% 90%, rgba(240, 171, 252, 0.1), transparent 46%);
+  background-attachment: fixed;
+}
+
+/* Let the particle field show through the app shells; individual panels keep
+   their own translucent surfaces for readability. */
+[data-theme="cyber"] .app-shell,
+[data-theme="cyber"] .app-main {
+  background-color: transparent;
+}
+
+[data-theme="cyber"] body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.06) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(circle at center, black 20%, transparent 78%);
+  animation: cyber-grid-drift 26s linear infinite;
+}
+
+[data-theme="cyber"] main > div {
+  animation: cyber-page-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="cyber"] .soc-glass-panel {
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.08),
+    0 0 28px -18px rgba(34, 211, 238, 0.55);
+  animation: cyber-panel-breathe 8s ease-in-out infinite;
+}
+
+[data-theme="cyber"] aside button {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+}
+[data-theme="cyber"] aside button:hover {
+  transform: translateX(2px);
+}
+
+@keyframes cyber-atmosphere-in {
+  to { opacity: 1; }
+}
+@keyframes cyber-page-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cyber-panel-breathe {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.06), 0 0 24px -20px rgba(34, 211, 238, 0.4); }
+  50% { box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12), 0 0 32px -16px rgba(240, 171, 252, 0.45); }
+}
+@keyframes cyber-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(54px, 54px, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cyber-atmosphere {
+    animation: none;
+    opacity: 1;
+  }
+  [data-theme="cyber"] main > div,
+  [data-theme="cyber"] .soc-glass-panel,
+  [data-theme="cyber"] body::before {
+    animation: none;
+  }
+}

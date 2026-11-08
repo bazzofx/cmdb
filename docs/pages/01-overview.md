@@ -13,7 +13,7 @@
 
 ## 1. What this page is for
 
-Overview answers "what does the estate look like right now?" without asking anyone to build a filter. It is the default view on load and the page the NEXUSINFRA logo returns you to.
+Overview answers "what does the estate look like right now?" without asking anyone to build a filter. It is the default view on load and the page the SOC CMDB logo returns you to.
 
 It summarises five headline figures (servers, online, products, secure boot, ownership completeness), then breaks them down by business unit, product, power state and security posture. Every KPI card, bar, legend row and telemetry line is a navigation affordance: clicking generally opens Inventory with a matching filter pre-applied, or opens the relevant domain view.
 
@@ -34,9 +34,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 ## 3. Screen walkthrough
 
-**Page header.** Title "Infrastructure Overview", subtitle "Real-time visibility of your infrastructure, security posture and ownership". On the right is a calendar dropdown whose label starts as "Last 24 Hours".
-
-**Time range dropdown.** Opening it lists "Last 24 Hours", "Last 7 Days", "Last 30 Days" and "Year to Date"; the active option is highlighted in blue with a dot. Selecting an option updates the button label and closes the menu. As implemented the selection is cosmetic: it triggers no request and changes no figure on the page.
+**Page header.** Title "Infrastructure Overview", subtitle "Real-time visibility of your infrastructure, security posture and ownership". There is no time-range control; the header is title and subtitle only.
 
 **KPI row (five cards).** "Total Servers", "Online" (value `n / total` plus a percentage), "Products" (badge reads `4_Product`), "Secure Boot" (`n / total` plus percentage) and "Ownership Complete" (`n / total` plus percentage). Each card carries an icon, a sparkline and the hard-coded subtitle "↑ 0% vs previous period". The whole card is clickable.
 
@@ -45,6 +43,8 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 **Row B — two donuts.** Left: "Power State Distribution" with an `n% ACTIVE` pill, a donut whose centre shows the powered-on percentage, and a legend of "Powered On", "Powered Off" and "Suspended". Right: "Security Posture" with sub-label "EFI Secure Boot & Hardware", a donut showing the secure percentage and a four-row legend: "Secure", "At Risk", "At Risk (High)", "Unknown / Disabled".
 
 **Right column.** "Business Unit Distribution" card: a donut/pie on the left with its legend immediately to the right, matching the "Power State Distribution" layout. It reads `servers_by_business_unit`, shows a coloured legend with count and percentage, a centre readout that switches from total servers to the hovered unit, and a `N BUs` badge. Hovering a slice highlights it and updates the centre count; clicking a slice or legend row opens Inventory with `business_unit=<name>`. The three top-row cards (Servers by Business Unit, Product Counts and Business Unit Distribution) share a 340px height at desktop widths so their tops and bottoms align.
+
+**Affected Asset Triage.** A read-only list of hosts attached to open incidents, with columns for host, VM, primary IP, business unit and manager. The card and its incident/servers fetch are rendered only for roles that can open the Incidents page (`analyst`, `manager`, `admin`); viewers do not see the card or its data request.
 
 **Full-width Operational Telemetry bar.** Below the middle chart grid and above the bottom row, a single compact bar spans the content width. It contains seven single-line items in two rows (four then three): Sub-Business Units, Datacenters, Support Teams, Unique Managers, Missing Owner, Missing Email and Incomplete Metadata. Each item has a small icon, a label and a colour-coded number; the whole item is clickable and navigates to the related view or Inventory filter. The old Environments chip list is no longer rendered on Overview.
 
@@ -101,7 +101,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 ## 6. Gotchas and guardrails
 
-- The time-range dropdown is not wired to any API call. Choosing "Last 30 Days" changes the label only.
+- Viewer accounts do not receive incident data on Overview: `App` computes `canAccessIncidents` from the same role set as the Sidebar (`analyst`, `manager`, `admin`), and `OverviewView` defaults the prop to `false`, so omitting it or using an unknown role cannot expose the card.
 - Every "↑ 0% vs previous period" trend and every Infrastructure Health gauge is static decoration; do not quote them as measurements.
 - The "Business Unit Distribution" pie reads `/api/stats`; clicking a slice navigates to Inventory with `business_unit=<name>`. The `Unassigned` slice is intentionally not clickable because the Inventory business-unit filter cannot match an empty value.
 - "Recent Activity" does not read the audit log, even though `recentLogs` is fetched on load and passed in.
@@ -122,7 +122,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 - `onNavigate(view: string, filterParams?: Record<string, string>)` — the only wiring out of the page; mirrors `App.handleNavigate`.
 - `onSelectServer: (id: string) => void` — present in the interface, not destructured, therefore dead.
 
-**Local state and side effects.** Two pieces of state only: `timeRange` (string, default `'Last 24 Hours'`) and `isTimeRangeOpen` (boolean). There is no `useEffect`, no fetch and no interval; all data arrives via props from `App`, which loads `/api/stats`, `/api/audit-logs` and `/api/incidents` once on mount and on demand after data-management actions.
+**Local state and side effects.** State covers the hovered business-unit slice (`hoveredBusinessUnit`), the Affected Asset Triage rows (`affectedAssets`) and their loading flag (`affectedLoading`). A `useEffect` loads active incidents and their servers for that card; all dashboard data otherwise arrives via props from `App`, which loads `/api/stats`, `/api/audit-logs` and `/api/incidents` on mount and on demand after data-management actions.
 
 **API calls with query parameters and response shape.** The view issues none itself. The data contract is `DashboardMetrics` from `src/types/index.ts`: scalar counters, `servers_by_business_unit[]`, `servers_by_product[]`, `servers_by_environment[]`, `servers_by_datacenter[]`, `servers_by_support_team[]`, `servers_by_power_state[]`, `secure_boot_status[]` and `ownership_completeness{ fully_assigned, missing_manager, missing_email, missing_business_unit, missing_support_team }`. Server side, `/api/stats` computes every breakdown from `db.data.servers` on each request; `servers_by_product` is filtered to drop `Unassigned` and sliced to ten.
 
@@ -151,7 +151,7 @@ The page is read-only. There are no edit controls, no create buttons and no serv
 
 Rows that pass no filter keys leave whatever filters Inventory already had in place, because `App.handleNavigate` only overrides `inventoryFilters` when `filterParams !== undefined`.
 
-**Extension points and known rough edges.** Wire `timeRange` to a real `from`/`to` query so trends become meaningful; replace the `|| 9` style fallbacks with explicit empty states; render `recentLogs` in Recent Activity; drive Infrastructure Health and Top Risks from `/api/incidents` and `/api/stats` rather than literals; use `onSelectServer` to open the drawer from a small "top servers" list if one is added. The static NDM/Housing/Pulse VTM product fallback will surface fictional data if `servers_by_product` ever comes back empty.
+**Extension points and known rough edges.** Replace the `|| 9` style fallbacks with explicit empty states; render `recentLogs` in Recent Activity; drive Infrastructure Health and Top Risks from `/api/incidents` and `/api/stats` rather than literals; use `onSelectServer` to open the drawer from a small "top servers" list if one is added. The static NDM/Housing/Pulse VTM product fallback will surface fictional data if `servers_by_product` ever comes back empty.
 
 ## 8. Related pages
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Mail, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Lock, Mail, AlertTriangle } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -25,24 +25,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070B14] flex items-center justify-center p-6">
+    <div className="app-shell min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl soc-glass-panel border border-white/10 p-7 shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-sm font-extrabold tracking-wider text-white uppercase">
-              NEXUS<span className="text-blue-400">INFRA</span>
-            </div>
-            <div className="text-[11px] text-slate-400">CMDB access is restricted</div>
-          </div>
+        <div className="flex flex-col items-center gap-5 mb-6">
+          <img
+            src="/assets/logo.png"
+            alt="SOC CMDB"
+            className="h-40 w-auto object-contain drop-shadow-[0_0_20px_rgba(59,130,246,0.25)]"
+          />
+          <div className="text-[12px] text-slate-400">Access restricted</div>
         </div>
 
-        <h1 className="text-lg font-bold text-white">Sign in</h1>
-        <p className="text-xs text-slate-400 mt-1 mb-5">
-          Local account. This deployment runs in an air-gapped environment.
-        </p>
+        {/* <h1 className="text-lg font-bold text-white">Sign in</h1> */}
 
         {error && (
           <div className="flex items-start gap-2 p-2.5 mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-200">
@@ -63,7 +57,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 value={email}
                 onChange={event => setEmail(event.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/60"
-                placeholder="you@example.com"
+                placeholder="email@.com"
               />
             </div>
           </label>
@@ -93,8 +87,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           </button>
         </form>
 
-        <p className="text-[10px] text-slate-500 mt-5 text-center">
-          Accounts are created by an administrator. There is no self-registration.
+        <p className="text-[11px] text-slate-500 mt-5 text-center">
+          Accounts are created by an SWG Admin Team. There is no self-registration.
         </p>
       </div>
     </div>

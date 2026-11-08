@@ -90,7 +90,7 @@ The page fills the viewport and is laid out as a single-line toolbar above a ful
 
 1. Choose **Orbit** or **Linear**.
 2. Optionally hide **Mgr** to keep the export focused on structure.
-3. Click **Export PNG**. The file is named `nexusinfra-ownership-<mode>-<YYYY-MM-DD>.png` and includes the full graph, not just the visible viewport.
+3. Click **Export PNG**. The file is named `soc-cmdb-ownership-<mode>-<YYYY-MM-DD>.png` and includes the full graph, not just the visible viewport.
 
 ## 6. Gotchas and guardrails
 

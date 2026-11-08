@@ -1,12 +1,12 @@
-# CSM Server Ownership & Business Intelligence — Documentation
+# SOC CMDB — Server Ownership & Business Intelligence — Documentation
 
 This folder is the **documentation forwarder**: start here, pick the path that matches what you are doing, and follow the links. Every application page has its own subsection under [`pages/`](./pages), written for the ten operational users first and for internal development second.
 
 The documentation describes the application **as implemented in this repository**, not an aspirational roadmap. Where a control is static, hard-coded or only partially wired, the page says so.
 
-- Application: React 19 + Vite 8 frontend, Express + TypeScript backend, JSON data store
+- Application: React 19 + Vite 8 frontend, Express + TypeScript backend, embedded SQLite stores (auth + application)
 - Documentation last reviewed: 8 November 2026
-- Source of truth: `src/`, `server.ts`, and `data/csm_database.json`
+- Source of truth: `src/`, `server.ts`, `src/db/store.ts` and `data/*.sqlite`
 
 ## Start here
 
@@ -44,6 +44,22 @@ Supporting documents:
 - [Authentication for production](../authentication4Production.md) — local auth, roles, secure deployment checklist and LDAP plan
 - [Technology stack, fonts and external assets](./technology-and-assets.md) — high-level stack, font sourcing, local copies and external requests
 
+## Colour palettes
+
+The palette picker sits in the top-right of the navbar (paint-palette button) and applies instantly across the shell and every view. The selection is stored per device in `localStorage` under `csm-theme`; an inline script in `index.html` applies it before first paint. New browsers start on **Steel**.
+
+| Palette | Character |
+|---|---|
+| **Default** | The original navy, blue and cyan SOC scheme |
+| **Steel** | Steel blue with shock-orange highlights (startup palette) |
+| **X3000** | Titanium black and light grey with shock-pink highlights |
+| **Midnight** | Midnight black with neon green |
+| **Morning** | Light mode: paper white, beige and dark grey with orange and blue accents |
+| **Coffee** | Dark brown, soft pastel yellow and cream |
+| **Cyber** | Neon violet/cyan palette with a particle canvas, drifting grid, panel glow and page-enter motion |
+
+Cyber respects `prefers-reduced-motion`: the particles render as a static field and the motion animations are disabled. The logo, favicon (`/assets/favourites.ico`) and page title are shared by every palette. Palette mechanics live in [`src/theme/palettes.css`](../src/theme/palettes.css) and [`src/theme/ThemeContext.tsx`](../src/theme/ThemeContext.tsx).
+
 ## The reports at a glance
 
 The Reports page is the export surface of everything else. Each report has its own grain, so numbers line up with the page they came from.
@@ -67,7 +83,7 @@ Full detail, including export formats and the drilling rules, is in [Reports](./
 
 ## Documentation conventions
 
-- **"As implemented"** means the behaviour was read from the source. If a control is cosmetic (for example a time-range dropdown that does not filter), the page says so in *Gotchas*.
+- **"As implemented"** means the behaviour was read from the source. If a control is cosmetic (for example a dropdown that does not filter), the page says so in *Gotchas*.
 - UI labels appear in "quotes" exactly as rendered; view ids and API routes appear in `code`.
 - **Sections 1–6** of every page are for operational users. **Section 7 — For developers** covers props, state, API calls and extension points.
 - Line numbers are avoided in prose because they rot; file names are not. Search the named file for the label.

@@ -22,6 +22,8 @@ import { api } from './services/api.js';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { LoginView } from './components/auth/LoginView.js';
 import { ChangePasswordModal } from './components/auth/ChangePasswordModal.js';
+import { CyberAtmosphere } from './components/common/CyberAtmosphere.js';
+import { ThemeProvider } from './theme/ThemeContext.js';
 import type { DashboardMetrics, AuditLogEvent, Incident } from './types/index.js';
 
 function AppShell() {
@@ -61,7 +63,10 @@ function AppShell() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const canAccessIncidents = user?.role !== 'viewer';
+  // Keep this in lockstep with the Sidebar's incident visibility rule. Only
+  // roles that can open the Incidents page should see incident data on Overview.
+  const canAccessIncidents =
+    user?.role === 'analyst' || user?.role === 'manager' || user?.role === 'admin';
   const canViewAudit = user?.role === 'manager' || user?.role === 'admin';
 
   const loadDashboardData = useCallback(async () => {
@@ -119,7 +124,7 @@ function AppShell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#070B14] flex items-center justify-center text-xs font-mono text-slate-400">
+      <div className="app-shell min-h-screen bg-[var(--app-bg)] flex items-center justify-center text-xs font-mono text-slate-400">
         <div className="p-8 rounded-2xl border border-white/5 bg-slate-900/40">
           Checking your session…
         </div>
@@ -132,7 +137,7 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
+    <div className="app-shell min-h-screen bg-[var(--app-bg)] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
       {/* 1. Global Navbar */}
       <Navbar
         onOpenSearch={() => setIsSearchOpen(true)}
@@ -175,7 +180,7 @@ function AppShell() {
         />
 
         {/* 3. Main Workspace Area */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#070B14]">
+        <main ref={mainRef} className="app-main flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--app-bg)]">
           {currentView === 'overview' && (
             <OverviewView
               metrics={metrics}
@@ -302,9 +307,12 @@ function AppShell() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppShell />
-    </AuthProvider>
+    <ThemeProvider>
+      <CyberAtmosphere />
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

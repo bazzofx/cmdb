@@ -9,8 +9,6 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Cpu,
-  ShieldAlert,
   CheckCircle2,
   Check,
   Copy,
@@ -97,7 +95,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-white">4_Product Catalog</h1>
+                <h1 className="text-xl font-bold tracking-tight text-white">Product Catalog</h1>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                   {products.length} Products
                 </span>
@@ -197,7 +195,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             return (
               <div
                 key={product.name}
-                className="rounded-xl bg-[#0c1222]/90 border border-white/10 hover:border-blue-500/40 transition-all shadow-xl flex flex-col justify-between overflow-hidden group"
+                className="rounded-xl bg-[var(--surface-1)]/90 border border-white/10 hover:border-blue-500/40 transition-all shadow-xl flex flex-col justify-between overflow-hidden group"
               >
                 {/* Card Top / Header */}
                 <div className="p-5 space-y-4">
@@ -329,7 +327,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Server Workload Functions */}
+                  {/* Server Workload Functions
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono block">
                       Workload Roles & Functions
@@ -345,7 +343,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         </span>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Expandable Server List inside card */}
                   {isExpanded && product.servers && (
@@ -358,7 +356,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           <div
                             key={s.id}
                             onClick={() => onSelectServer && onSelectServer(s.id)}
-                            className="p-2 rounded bg-black/40 border border-white/5 hover:border-blue-400/40 transition-colors cursor-pointer flex items-center justify-between text-xs"
+                            className="p-2 rounded bg-[var(--surface-3)]/70 border border-white/5 hover:border-blue-400/40 transition-colors cursor-pointer flex items-center justify-between text-xs"
                           >
                             <div className="min-w-0 pr-2">
                               <div className="font-mono text-slate-200 truncate font-medium">
@@ -391,7 +389,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   </button>
 
                   <div className="flex items-center gap-1.5">
-                    {onOpenIncidentWithServers && (
+                    {/* {onOpenIncidentWithServers && (
                       <button
                         onClick={() => onOpenIncidentWithServers(product.server_ids)}
                         className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer"
@@ -399,7 +397,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       >
                         <ShieldAlert className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    )} */}
 
                     <button
                       onClick={() => onFilterInventory && onFilterInventory({ product: product.name })}

@@ -54,19 +54,19 @@ class OwnershipErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundary
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 rounded-2xl bg-[#111A2E]/95 border border-rose-500/30 text-center space-y-4 max-w-lg mx-auto my-12 shadow-2xl">
+        <div className="p-8 rounded-2xl bg-[var(--surface-2)]/95 border border-rose-500/30 text-center space-y-4 max-w-lg mx-auto my-12 shadow-2xl">
           <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
             <AlertCircle className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-[#E8EDF7]">Relationship Graph Recovered</h3>
-            <p className="text-xs text-[#8996AE]">
+            <h3 className="text-base font-bold text-[var(--text-primary)]">Relationship Graph Recovered</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
               The topology renderer encountered an edge-mapping anomaly with the active filters.
             </p>
           </div>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-4 py-2 rounded-xl bg-[#4F8CFF] hover:bg-[#3B72DE] text-white text-xs font-semibold cursor-pointer shadow-md transition-colors"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer shadow-md transition-colors"
           >
             Reload Graph Explorer
           </button>
@@ -862,7 +862,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
       const png64 = cyRef.current.png({ full: true, bg: '#0B1223' });
       const link = document.createElement('a');
       link.href = png64;
-      link.download = `nexusinfra-ownership-${visualizationMode}-${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `soc-cmdb-ownership-${visualizationMode}-${new Date().toISOString().slice(0, 10)}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -889,9 +889,9 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
   };
 
   return (
-    <div className="space-y-3 max-w-full h-[calc(100vh-5.5rem)] flex flex-col select-none bg-[#080D19] text-[#E8EDF7]">
+    <div className="space-y-3 max-w-full h-[calc(100vh-5.5rem)] flex flex-col select-none bg-[var(--app-bg)] text-[var(--text-primary)]">
       {/* 1. TOP COMPACT CONTROL TOOLBAR (Strictly Single-Line Layout) */}
-      <div className="px-3 py-2 rounded-xl bg-[#111A2E]/90 border border-slate-800/80 shadow-xl backdrop-blur-md flex items-center justify-between gap-2.5 shrink-0 flex-nowrap overflow-x-auto">
+      <div className="px-3 py-2 rounded-xl bg-[var(--surface-2)]/90 border border-slate-800/80 shadow-xl backdrop-blur-md flex items-center justify-between gap-2.5 shrink-0 flex-nowrap overflow-x-auto">
         {/* Title & Count Badge */}
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-sm shrink-0">
@@ -908,16 +908,16 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
         <div className="flex items-center flex-nowrap gap-1.5 text-xs shrink-0 whitespace-nowrap">
           {/* Focus BU Dropdown */}
           <div className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-1 rounded-lg shrink-0">
-            <span className="text-[12px] font-mono text-[#8996AE] uppercase font-semibold">BU:</span>
+            <span className="text-[12px] font-mono text-[var(--text-secondary)] uppercase font-semibold">BU:</span>
             <select
               value={selectedBU}
               onChange={e => setSelectedBU(e.target.value)}
               className="bg-transparent text-slate-200 text-[14px] font-mono focus:outline-none cursor-pointer max-w-[95px] truncate"
               title="Focus Business Unit"
             >
-              <option value="all" className="bg-[#111A2E]">All</option>
+              <option value="all" className="bg-[var(--surface-2)]">All</option>
               {allBUs.map(bu => (
-                <option key={bu} value={bu} className="bg-[#111A2E]">{bu}</option>
+                <option key={bu} value={bu} className="bg-[var(--surface-2)]">{bu}</option>
               ))}
             </select>
           </div>
@@ -943,7 +943,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
                 visualizationMode === 'radial'
                   ? 'bg-cyan-600/30 text-cyan-200 border border-cyan-500/50 font-semibold shadow-xs'
-                  : 'text-[#8996AE] hover:text-slate-200 hover:bg-white/5'
+                  : 'text-[var(--text-secondary)] hover:text-slate-200 hover:bg-white/5'
               }`}
               title="Radial Orbit View (Default): Central server ring with concentric arcs"
             >
@@ -955,7 +955,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
                 visualizationMode === 'linear'
                   ? 'bg-blue-600/30 text-blue-200 border border-blue-500/50 font-semibold shadow-xs'
-                  : 'text-[#8996AE] hover:text-slate-200 hover:bg-white/5'
+                  : 'text-[var(--text-secondary)] hover:text-slate-200 hover:bg-white/5'
               }`}
               title="Linear Flow View: Tiered governance columns"
             >
@@ -1038,14 +1038,14 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
       </div>
 
       {/* 2. MAIN GRAPH CANVAS & DETAIL PANEL CONTAINER */}
-      <div className="flex-1 rounded-2xl bg-[#0B1223] relative overflow-hidden flex border border-slate-800/80 shadow-2xl">
+      <div className="flex-1 rounded-2xl bg-[var(--surface-1)] relative overflow-hidden flex border border-slate-800/80 shadow-2xl">
         {/* Graph Canvas Mount Point */}
         <div ref={containerRef} className="flex-1 w-full h-full cursor-grab active:cursor-grabbing" />
 
         {/* Interactive Floating Hover Tooltip */}
         {hoverTooltip.visible && hoverTooltip.data && (
           <div
-            className="absolute z-30 pointer-events-none p-3 rounded-xl bg-[#111A2E]/95 border border-slate-700/60 shadow-2xl backdrop-blur-md text-xs font-mono space-y-1.5 max-w-xs transition-opacity duration-150 -translate-x-1/2 -translate-y-full -mt-3"
+            className="absolute z-30 pointer-events-none p-3 rounded-xl bg-[var(--surface-2)]/95 border border-slate-700/60 shadow-2xl backdrop-blur-md text-xs font-mono space-y-1.5 max-w-xs transition-opacity duration-150 -translate-x-1/2 -translate-y-full -mt-3"
             style={{
               left: `${hoverTooltip.x}px`,
               top: `${hoverTooltip.y}px`,
@@ -1055,7 +1055,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               {getNodeIcon(hoverTooltip.data.type)}
               <span className="font-bold text-white truncate">{hoverTooltip.data.label?.replace('\n', ' ')}</span>
             </div>
-            <div className="text-[12px] text-[#8996AE] space-y-0.5">
+            <div className="text-[12px] text-[var(--text-secondary)] space-y-0.5">
               <div className="flex justify-between">
                 <span>Category:</span>
                 <span className="text-white capitalize">{hoverTooltip.data.type?.replace(/_/g, ' ')}</span>
@@ -1102,13 +1102,13 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
 
         {/* Empty State Banner if all nodes are filtered out */}
         {nodeCount === 0 && !loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#070B14]/80 backdrop-blur-sm z-20 space-y-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[var(--app-bg)]/80 backdrop-blur-sm z-20 space-y-3">
             <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400">
               <Eye className="w-6 h-6" />
             </div>
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-white">All Node Types Currently Hidden</h3>
-              <p className="text-xs text-[#8996AE] max-w-sm">
+              <p className="text-xs text-[var(--text-secondary)] max-w-sm">
                 Enable one or more unit boxes (Business Unit, Sub-BU, Product, Server, Manager) above to visualise relations.
               </p>
             </div>
@@ -1137,8 +1137,8 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
         )}
 
         {/* 3. REDESIGNED COMPACT LEGEND */}
-        <div className="absolute right-4 bottom-4 p-3 rounded-xl bg-[#111A2E]/90 border border-slate-700/60 backdrop-blur-md text-[11px] font-mono space-y-1.5 select-none z-10 shadow-2xl">
-          <div className="text-[12px] text-[#8996AE] uppercase tracking-wider mb-1 font-semibold flex items-center gap-1.5">
+        <div className="absolute right-4 bottom-4 p-3 rounded-xl bg-[var(--surface-2)]/90 border border-slate-700/60 backdrop-blur-md text-[11px] font-mono space-y-1.5 select-none z-10 shadow-2xl">
+          <div className="text-[12px] text-[var(--text-secondary)] uppercase tracking-wider mb-1 font-semibold flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
             <span>Ownership Legend</span>
           </div>
@@ -1168,7 +1168,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
 
         {/* 4. NODE INFORMATION DETAIL PANEL (Slide-out drawer when node is clicked) */}
         {selectedNode && (
-          <div className="absolute top-0 right-0 bottom-0 w-80 md:w-84 border-l border-slate-700/60 bg-[#111A2E]/95 backdrop-blur-md p-4 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200 z-30 shadow-2xl">
+          <div className="absolute top-0 right-0 bottom-0 w-80 md:w-84 border-l border-slate-700/60 bg-[var(--surface-2)]/95 backdrop-blur-md p-4 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200 z-30 shadow-2xl">
             <div className="space-y-4">
               <div className="flex items-start justify-between pb-2 border-b border-white/10">
                 <div className="space-y-0.5">
@@ -1193,31 +1193,31 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                 <div className="space-y-3 text-xs">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5 font-mono">
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">VM:</span>
+                      <span className="text-[var(--text-secondary)]">VM:</span>
                       <span className="text-white font-bold">{selectedNode.extra.serverRecord.vm}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Host:</span>
+                      <span className="text-[var(--text-secondary)]">Host:</span>
                       <span className="text-white">{selectedNode.extra.serverRecord.host}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">IP:</span>
+                      <span className="text-[var(--text-secondary)]">IP:</span>
                       <span className="text-cyan-300">{selectedNode.extra.serverRecord.primary_ip_address}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Product:</span>
+                      <span className="text-[var(--text-secondary)]">Product:</span>
                       <span className="text-blue-300">{selectedNode.extra.serverRecord.product || 'None'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Sub-BU:</span>
+                      <span className="text-[var(--text-secondary)]">Sub-BU:</span>
                       <span className="text-indigo-300">{selectedNode.extra.serverRecord.sub_business_unit || 'None'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Business Unit:</span>
+                      <span className="text-[var(--text-secondary)]">Business Unit:</span>
                       <span className="text-purple-300">{selectedNode.extra.serverRecord.business_unit}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Manager:</span>
+                      <span className="text-[var(--text-secondary)]">Manager:</span>
                       <span className="text-amber-300">{selectedNode.extra.serverRecord.manager}</span>
                     </div>
                   </div>
@@ -1228,7 +1228,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                         onSelectServer(selectedNode.extra.serverRecord.id);
                       }
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#4F8CFF] hover:bg-[#3B72DE] text-white font-semibold text-xs transition-colors cursor-pointer shadow-md shadow-blue-500/20 active:scale-[0.99]"
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors cursor-pointer shadow-md shadow-blue-500/20 active:scale-[0.99]"
                   >
                     <span>More Details (Server Profile)</span>
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -1240,10 +1240,10 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
               {selectedNode.type === 'manager' && (
                 <div className="space-y-2 text-xs">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
-                    <span className="text-[#8996AE] block text-[11px]">Contact Email:</span>
+                    <span className="text-[var(--text-secondary)] block text-[11px]">Contact Email:</span>
                     <span className="font-mono text-amber-300 block">{selectedNode.extra?.email || 'None'}</span>
                   </div>
-                  <p className="text-[#8996AE] text-[11px]">
+                  <p className="text-[var(--text-secondary)] text-[11px]">
                     Directly overseeing {selectedNode.neighbors?.length || 0} server entities.
                   </p>
                 </div>
@@ -1254,12 +1254,12 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                 <div className="space-y-2 text-xs">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Business Unit:</span>
+                      <span className="text-[var(--text-secondary)]">Business Unit:</span>
                       <span className="font-mono text-purple-300">{selectedNode.extra?.bu || 'N/A'}</span>
                     </div>
                     {selectedNode.extra?.subBu && (
                       <div className="flex justify-between">
-                        <span className="text-[#8996AE]">Sub-BU:</span>
+                        <span className="text-[var(--text-secondary)]">Sub-BU:</span>
                         <span className="font-mono text-indigo-300">{selectedNode.extra?.subBu}</span>
                       </div>
                     )}
@@ -1272,7 +1272,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                 <div className="space-y-2 text-xs">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Parent BU:</span>
+                      <span className="text-[var(--text-secondary)]">Parent BU:</span>
                       <span className="font-mono text-purple-300">{selectedNode.extra?.buName || 'N/A'}</span>
                     </div>
                   </div>
@@ -1284,11 +1284,11 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                 <div className="space-y-2 text-xs">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Org Code:</span>
+                      <span className="text-[var(--text-secondary)]">Org Code:</span>
                       <span className="font-mono text-purple-300">{selectedNode.extra?.org || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#8996AE]">Customer:</span>
+                      <span className="text-[var(--text-secondary)]">Customer:</span>
                       <span className="text-slate-200">{selectedNode.extra?.customer || 'N/A'}</span>
                     </div>
                   </div>
@@ -1297,7 +1297,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
 
               {/* Connected Neighbors list */}
               <div className="space-y-2 pt-2 border-t border-white/10">
-                <span className="text-[12px] font-mono uppercase text-[#8996AE] tracking-wider font-semibold">
+                <span className="text-[12px] font-mono uppercase text-[var(--text-secondary)] tracking-wider font-semibold">
                   Linked Entities ({selectedNode.neighbors?.length || 0}):
                 </span>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -1316,7 +1316,7 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
                       title="Click to view details"
                     >
                       <span className="text-slate-300 truncate max-w-[170px]">{nb.label?.split('\n')[0]}</span>
-                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-white/5 text-[#8996AE]">
+                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-white/5 text-[var(--text-secondary)]">
                         {nb.type?.replace(/_/g, ' ')}
                       </span>
                     </div>

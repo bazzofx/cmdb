@@ -127,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`h-[calc(100vh-4rem)] bg-[#070B14] border-r border-white/[0.06] flex flex-col justify-between transition-all duration-300 select-none z-20 relative overflow-hidden ${
+      className={`h-[calc(100vh-4rem)] bg-[var(--app-bg)] border-r border-white/[0.06] flex flex-col justify-between transition-all duration-300 select-none z-20 relative overflow-hidden ${
         collapsed ? 'w-18' : 'w-60'
       }`}
     >
@@ -178,13 +178,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3 z-10 space-y-3">
         {/* Silhouette Vector Artwork */}
         {!collapsed && (
-          <div className="w-full h-24 rounded-xl relative overflow-hidden flex items-end justify-center bg-gradient-to-t from-[#0b1329] via-[#091024] to-transparent border border-blue-500/10 shadow-inner">
+          <div className="sidebar-art w-full h-24 rounded-xl relative overflow-hidden flex items-end justify-center border shadow-inner">
             {/* Stars & Crescent Glow */}
-            <div className="absolute top-2 right-4 w-6 h-6 rounded-full bg-cyan-400/20 blur-sm pointer-events-none" />
-            <div className="absolute top-3 right-5 w-4 h-4 rounded-full border-t border-l border-cyan-200 opacity-70 pointer-events-none" />
-            <div className="absolute top-4 left-6 w-1 h-1 bg-white/60 rounded-full" />
-            <div className="absolute top-8 left-12 w-0.5 h-0.5 bg-blue-300/60 rounded-full" />
-            <div className="absolute top-3 left-24 w-1 h-1 bg-indigo-300/70 rounded-full" />
+            <div className="art-glow absolute top-2 right-4 w-6 h-6 rounded-full blur-sm pointer-events-none" />
+            <div className="art-crescent absolute top-3 right-5 w-4 h-4 rounded-full border-t border-l opacity-70 pointer-events-none" />
+            <div className="art-star absolute top-4 left-6 w-1 h-1 rounded-full" />
+            <div className="art-star absolute top-8 left-12 w-0.5 h-0.5 rounded-full" />
+            <div className="art-star absolute top-3 left-24 w-1 h-1 rounded-full" />
 
             {/* Crag & Samurai silhouette SVG */}
             <svg
@@ -194,35 +194,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <defs>
                 <linearGradient id="rock-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1e293b" />
-                  <stop offset="100%" stopColor="#070b14" />
+                  <stop offset="0%" stopColor="var(--art-near-top)" />
+                  <stop offset="100%" stopColor="var(--art-near-bottom)" />
                 </linearGradient>
               </defs>
               {/* Distant crags */}
-              <polygon points="0,80 30,55 70,68 110,50 160,70 200,55 200,80" fill="#0f172a" />
+              <polygon points="0,80 30,55 70,68 110,50 160,70 200,55 200,80" fill="var(--art-far)" />
               {/* Forefront rocky bluff */}
               <polygon points="0,80 20,45 55,42 90,62 140,80" fill="url(#rock-grad)" />
               {/* Silhouette warrior standing with sword */}
-              <g transform="translate(36, 18) scale(0.65)">
+              <g className="art-silhouette" transform="translate(36, 18) scale(0.65)">
                 {/* Head / helmet with horns */}
-                <circle cx="15" cy="10" r="4.5" fill="#070b14" />
-                <path d="M11 7 L9 2 L13 6" stroke="#070b14" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M19 7 L21 2 L17 6" stroke="#070b14" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="15" cy="10" r="4.5" fill="currentColor" />
+                <path d="M11 7 L9 2 L13 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M19 7 L21 2 L17 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 {/* Torso / Armor */}
-                <path d="M9 14 L21 14 L18 27 L12 27 Z" fill="#070b14" />
+                <path d="M9 14 L21 14 L18 27 L12 27 Z" fill="currentColor" />
                 {/* Cape / Robe flowing */}
-                <path d="M9 15 Q4 22 2 35 Q10 32 15 30 Z" fill="#070b14" />
+                <path d="M9 15 Q4 22 2 35 Q10 32 15 30 Z" fill="currentColor" />
                 {/* Legs */}
-                <path d="M12 27 L10 40 M18 27 L20 40" stroke="#070b14" strokeWidth="3" strokeLinecap="round" />
+                <path d="M12 27 L10 40 M18 27 L20 40" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                 {/* Sword / Katana */}
-                <line x1="6" y1="18" x2="2" y2="38" stroke="#070b14" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="6" y1="18" x2="2" y2="38" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </g>
             </svg>
           </div>
         )}
 
         {/* System Status Card */}
-        <div className="p-3 rounded-xl bg-[#0B1325]/90 border border-slate-700/50 shadow-lg text-left">
+        <div className="p-3 rounded-xl bg-[var(--surface-1)]/90 border border-slate-700/50 shadow-lg text-left">
           <div className="flex items-center gap-2 mb-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
             <span className="text-xs font-semibold text-slate-100 truncate">

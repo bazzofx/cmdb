@@ -71,7 +71,7 @@ export const ServerDetailDrawer: React.FC<ServerDetailDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-3xl bg-[#0F172A] border-l border-white/10 h-full flex flex-col shadow-2xl overflow-hidden"
+        className="w-full max-w-3xl bg-[var(--surface-2)] border-l border-white/10 h-full flex flex-col shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Drawer Header */}

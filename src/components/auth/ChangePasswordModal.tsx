@@ -41,7 +41,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0b1120] p-5 shadow-2xl">
+      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[var(--surface-2)] p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-blue-400" />

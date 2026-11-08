@@ -396,7 +396,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
           {/* Rendered Live Preview (with interpolated variables) */}
           {data && (
             <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-black/40 border border-white/10 space-y-2 text-xs font-mono">
+              <div className="p-3 rounded-lg bg-[var(--surface-3)]/70 border border-white/10 space-y-2 text-xs font-mono">
                 <div className="pb-2 border-b border-white/10">
                   <span className="text-slate-400 text-[10px] block uppercase">Subject Line:</span>
                   <span className="text-blue-300 font-semibold">{data.preview.subject}</span>
