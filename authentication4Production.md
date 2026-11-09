@@ -33,7 +33,7 @@ Treat every unchecked box as a blocker.
 | 2 | `AUTH_MODE=local` (or `ldap` once implemented) | `disabled` is refused in production |
 | 3 | HTTPS is terminated in front of the app | Passwords and session cookies must not travel in clear text |
 | 4 | `COOKIE_SECURE=1` | Marks the session cookie `Secure` |
-| 5 | `APP_URL` is the exact public URL | Used by the Origin check; a mismatch blocks sign-in |
+| 5 | `APP_URL` is the exact public URL and `ALLOWED_ORIGINS` lists any trusted cross-origin frontends | Used by CORS and the Origin/CSRF check; a mismatch blocks sign-in or cross-origin API calls |
 | 6 | `TRUST_PROXY=1` when behind a reverse proxy | `req.protocol`/`req.ip` must reflect the client |
 | 7 | `cmdbUser`/`cmdbPass` are set in the OS environment, never in `.env` | No shared bootstrap secret remains on disk |
 | 8 | The bootstrap admin password has been changed on first sign-in | The first admin is forced to rotate (`must_change_password`) |
@@ -53,7 +53,9 @@ Treat every unchecked box as a blocker.
 ```text
 AUTH_MODE=local
 NODE_ENV=production
+PORT=3001
 APP_URL=https://cmdb.example.internal
+ALLOWED_ORIGINS=http://***.***.151.184:3001,http://soc-cmdb.development.local:3000
 COOKIE_SECURE=1
 TRUST_PROXY=1
 SESSION_TTL_HOURS=12
@@ -68,7 +70,9 @@ SESSION_TTL_HOURS=12
 
 Set `cmdbUser`/`cmdbPass` in the process environment, not in the `.env` file. The bootstrap block runs only when `users` is empty, so it is inert afterwards, but the secret should still not remain in the service environment after the first administrator has changed their password. The first administrator is forced to change the password on first sign-in (`must_change_password`).
 
-`APP_URL` must match the browser origin exactly (scheme, host and port). The Origin check also accepts the request's own host, but an exact `APP_URL` avoids surprises behind proxies.
+`APP_URL` must match the browser origin exactly (scheme, host and port). The request's own host is always accepted, but an exact `APP_URL` avoids surprises behind proxies.
+
+`ALLOWED_ORIGINS` is a comma-separated allowlist for browser origins that are trusted to call the API cross-origin. It is used by both the CORS middleware and the Origin/CSRF check. The built-in deployment origins include `http://***.***.151.184:3001` and `http://soc-cmdb.development.local:3001`; `APP_URL` is added automatically. For Vite's dev host check, set `VITE_ALLOWED_HOSTS` to the same comma-separated hostnames (no scheme, no port). Preflight `OPTIONS` requests are answered only for allowed origins; disallowed origins receive `403`.
 
 ## 4. First-run and handover procedure
 
@@ -195,7 +199,7 @@ Validation after deployment:
 5. Confirm the audit log records the logins, a host update and a 403.
 6. Restart the service and confirm the session survives until expiry.
 7. Sign out and confirm the old cookie returns `401`.
-8. Check browser DevTools for any request outside `APP_URL`.
+8. Check browser DevTools for any request outside `APP_URL` or `ALLOWED_ORIGINS`.
 
 ## 12. Known limitations
 

@@ -3,9 +3,9 @@ setlocal EnableExtensions
 title CSM CMDB - Development Server
 cd /d "%~dp0"
 
-rem Optional first argument: port number (defaults to 3000).
+rem Optional first argument: port number (defaults to 3001).
 set "PORT=%~1"
-if "%PORT%"=="" set "PORT=3000"
+if "%PORT%"=="" set "PORT=3001"
 
 where node >nul 2>nul
 if errorlevel 1 (

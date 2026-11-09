@@ -4,6 +4,17 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const allowedHosts = [
+    'localhost',
+    '127.0.0.1',
+    '10.102.151.184',
+    'soc-cmdb.development.local',
+    ...(process.env.VITE_ALLOWED_HOSTS || '')
+      .split(',')
+      .map(host => host.trim())
+      .filter(Boolean),
+  ];
+
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -12,6 +23,13 @@ export default defineConfig(() => {
       },
     },
     server: {
+      // Allow the production hostnames and any extra hosts supplied through
+      // VITE_ALLOWED_HOSTS (comma-separated, no scheme).
+      allowedHosts,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+      },
       // HMR can be disabled with DISABLE_HMR for constrained environments.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

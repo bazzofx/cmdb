@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Runtime | Node.js 22+, npm 10+ |
-| Dev server | `npm run dev` → http://localhost:3000 |
+| Dev server | `npm run dev` → http://localhost:3001 |
 | Production | `npm run build` then `NODE_ENV=production npm start` |
 | Database | `data/auth.sqlite` (users + sessions) and `data/cmdb.sqlite` (application data) — embedded SQLite, WAL mode |
 | Seed data | `public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv` |
@@ -33,7 +33,7 @@ npm -v      # 10.x
 npm run dev
 ```
 
-- Serves the API and the Vite-powered SPA on **http://localhost:3000**.
+- Serves the API and the Vite-powered SPA on **http://localhost:3001**.
 - Change the port with `PORT=3010 npm run dev` (macOS/Linux) or `$env:PORT=3010; npm run dev` (PowerShell).
 - On first boot the server creates `data/auth.sqlite` and `data/cmdb.sqlite`. It imports any legacy `data/csm_database.json` once; if that file is absent it seeds the demo CSV. The legacy JSON is left untouched and can be deleted after sign-off.
 - One-shot import (optional): `npm run migrate:db` re-imports `data/csm_database.json` into the two SQLite files (it first deletes the existing `.sqlite` files).
@@ -52,16 +52,16 @@ Change that password from the user menu before sharing the environment; the serv
 Health check now needs a session:
 
 ```bash
-curl -c cookies.txt -X POST http://localhost:3000/auth/login \
+curl -c cookies.txt -X POST http://localhost:3001/auth/login \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$CMDB_USER\",\"password\":\"$CMDB_PASS\"}"
-curl -b cookies.txt http://localhost:3000/api/stats
-curl -b cookies.txt "http://localhost:3000/api/servers?limit=5"
+curl -b cookies.txt http://localhost:3001/api/stats
+curl -b cookies.txt "http://localhost:3001/api/servers?limit=5"
 ```
 
 ### Windows launcher
 
-Double-click `start-dev.bat`, or run `start-dev.bat 3010` from a terminal at the repo root. The script checks Node.js is on `PATH`, installs dependencies on first run (`npm install --legacy-peer-deps`), starts `npm run dev` on port 3000 (or the port you pass), opens the browser after a few seconds, and keeps the window open when the server stops. Set `NO_BROWSER=1` before running to skip the browser step.
+Double-click `start-dev.bat`, or run `start-dev.bat 3010` from a terminal at the repo root. The script checks Node.js is on `PATH`, installs dependencies on first run (`npm install --legacy-peer-deps`), starts `npm run dev` on port 3001 (or the port you pass), opens the browser after a few seconds, and keeps the window open when the server stops. Set `NO_BROWSER=1` before running to skip the browser step.
 
 ## 3. Build and run in production mode
 
@@ -146,7 +146,7 @@ It clears cookies, signs in with `SMOKE_EMAIL`/`SMOKE_PASSWORD` (both are requir
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `EADDRINUSE :3000` | Another dev server or app is on the port | Stop it, or start with `PORT=3010` |
+| `EADDRINUSE :3001` | Another dev server or app is on the port | Stop it, or start with `PORT=3010` |
 | `npm error ERESOLVE … esbuild` | Vite 8 optional peer mismatch | `npm install --legacy-peer-deps` |
 | App shows demo data after a data loss | SQLite files were empty or deleted; the store imported legacy JSON or seeded demo data | Restore a backup while stopped; do not rely on the store being rebuilt |
 | `SQLITE_CORRUPT` / `database disk image is malformed` | Corrupt database file | Stop the server, restore both `.sqlite` backups, restart |

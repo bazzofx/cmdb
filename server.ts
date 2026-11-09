@@ -37,9 +37,54 @@ import { db as store } from './src/db/store.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const CSV_SOURCE_FILE = path.resolve(__dirname, 'public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv');
 const AUDIT_LOG_LIMIT = Math.max(500, parseInt(process.env.AUDIT_LOG_LIMIT || '5000', 10) || 5000);
+
+/**
+ * Trusted browser origins for CORS and the Origin/CSRF check.
+ *
+ * `ALLOWED_ORIGINS` is a comma-separated addition to the built-in deployment
+ * origins. `APP_URL` is always included so a reverse-proxied deployment works
+ * without duplicating its public URL.
+ */
+const normalizeOrigin = (value: string): string | null => {
+  const candidate = value.trim();
+  if (!candidate) return null;
+  const withScheme = /^https?:\/\//i.test(candidate) ? candidate : `http://${candidate}`;
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    return null;
+  }
+};
+
+const ALLOWED_ORIGINS = new Set<string>();
+[
+  'http://10.102.151.184:3001',
+  'http://soc-cmdb.development.local:3001',
+  'http://soc-cmdb.development.local',
+  'https://soc-cmdb.development.local',
+].forEach(origin => {
+  const normalized = normalizeOrigin(origin);
+  if (normalized) ALLOWED_ORIGINS.add(normalized);
+});
+(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .forEach(origin => {
+    const normalized = normalizeOrigin(origin);
+    if (normalized) ALLOWED_ORIGINS.add(normalized);
+  });
+if (process.env.APP_URL) {
+  const normalized = normalizeOrigin(process.env.APP_URL);
+  if (normalized) ALLOWED_ORIGINS.add(normalized);
+}
+
+const isAllowedOrigin = (origin: string | undefined, req: Request): boolean => {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  return origin === `${req.protocol}://${req.get('host')}`;
+};
 
 export function cleanString(val: any): string {
   if (val === null || val === undefined) return '';
@@ -448,33 +493,53 @@ async function startServer() {
     next();
   });
 
+  // CORS allowlist. This runs before the API/auth/CSRF layers so browser
+  // preflights are answered without requiring a session cookie.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (!origin) return next();
+
+    if (!isAllowedOrigin(origin, req)) {
+      return res.status(403).json({ error: 'Origin not allowed.' });
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Vary', 'Origin');
+
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        req.get('access-control-request-headers') || 'Content-Type, Accept, X-Requested-With',
+      );
+      res.setHeader('Access-Control-Max-Age', '600');
+      return res.status(204).end();
+    }
+
+    return next();
+  });
+
   // Never cache authenticated or auth-related responses; vary by cookie as a
   // defense against shared-cache reuse of per-session JSON.
   app.use(['/api', '/auth'], (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Vary', 'Cookie');
+    res.setHeader('Vary', 'Origin, Cookie');
     next();
   });
 
   // Basic CSRF hardening: reject cross-origin state changes from browsers.
   app.use((req, res, next) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    const origin = req.headers.origin;
+    const trustedOrigin = isAllowedOrigin(origin, req);
     const fetchSite = req.get('sec-fetch-site');
-    if (fetchSite && !['same-origin', 'same-site', 'none'].includes(fetchSite)) {
+    if (fetchSite && !['same-origin', 'same-site', 'none'].includes(fetchSite) && !trustedOrigin) {
       return res.status(403).json({ error: 'Cross-site request blocked.' });
     }
-    const origin = req.headers.origin;
-    if (!origin) return next();
-    const allowed = new Set([`${req.protocol}://${req.get('host')}`]);
-    if (process.env.APP_URL) {
-      try {
-        allowed.add(new URL(process.env.APP_URL).origin);
-      } catch {
-        // Ignore malformed APP_URL; the request origin still has to match the host.
-      }
-    }
-    if (!allowed.has(origin)) {
+    if (origin && !trustedOrigin) {
       return res.status(403).json({ error: 'Cross-origin request blocked.' });
     }
     return next();

@@ -13,7 +13,7 @@
 ## 1. Runtime topology
 
 ```text
-Browser ── HTTP ──> Express (server.ts, port 3000)
+Browser ── HTTP ──> Express (server.ts, port 3001)
                      ├── /api/*            JSON API (in-memory DB)
                      ├── dev:  Vite middleware (HMR, TS/TSX on the fly)
                      └── prod: dist/ static + SPA fallback
@@ -25,7 +25,7 @@ There is no separate frontend server, no router library and no database server. 
 
 - **Development** (`NODE_ENV` unset): `createViteServer({ middlewareMode: true })` renders and hot-reloads the SPA.
 - **Production** (`NODE_ENV=production`): `dist/` is served statically and every unknown path returns `dist/index.html`.
-- **Host binding**: `0.0.0.0:${PORT || 3000}`.
+- **Host binding**: `0.0.0.0:${PORT || 3001}`.
 
 ## 2. Repository map
 
@@ -153,6 +153,8 @@ Authentication routes are outside `/api`:
 | Audit | `GET /audit-logs` |
 
 `PUT /incidents/:id/hosts/:serverId` has a single canonical handler which matches an incident by ID or reference and upserts the host detail.
+
+**Browser origins and CORS.** `ALLOWED_ORIGINS` (comma-separated) is the trusted cross-origin allowlist, used by both the CORS middleware and the Origin/CSRF check; `APP_URL` and the request's own host are also accepted. The built-in deployment entries are `http://***.***.151.184:3000` and `http://soc-cmdb.development.local:3000`. `OPTIONS` preflights are answered only for allowed origins, and disallowed origins receive `403`. Vite's separate host check is controlled by `VITE_ALLOWED_HOSTS` in `vite.config.ts`.
 
 ## 6. Frontend composition
 
