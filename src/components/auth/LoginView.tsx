@@ -27,7 +27,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="app-shell login-shell relative min-h-screen flex items-center justify-center p-6 overflow-hidden">
-      <CyberAtmosphere force topology className="login-atmosphere" />
+      <CyberAtmosphere force topology rich className="login-atmosphere" />
       <div className="relative z-10 w-full max-w-md rounded-2xl soc-glass-panel border border-white/10 p-7 shadow-2xl">
         <div className="flex flex-col items-center gap-5 mb-6">
           <img

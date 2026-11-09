@@ -58,7 +58,7 @@ The palette picker sits in the top-right of the navbar (paint-palette button) an
 | **Coffee** | Dark brown, soft pastel yellow and cream |
 | **Cyber** | Neon violet/cyan palette with a particle canvas, drifting grid, panel glow and page-enter motion |
 
-Cyber respects `prefers-reduced-motion`: the particles render as a static field and the motion animations are disabled. The login screen renders the same particle field with stronger topology links for every palette; once signed in, the ambient canvas is only shown for Cyber. The logo, favicon (`/assets/favourites.ico`) and page title are shared by every palette. Palette mechanics live in [`src/theme/palettes.css`](../src/theme/palettes.css) and [`src/theme/ThemeContext.tsx`](../src/theme/ThemeContext.tsx).
+Cyber respects `prefers-reduced-motion`: the particles render as a static field and the motion animations are disabled. The login screen renders the richer version of the same field for every palette — more particles, curved nearest-neighbour links, travelling light pulses, short motion trails and gold sparks — while the signed-in ambient canvas is only shown for Cyber. The logo, favicon (`/assets/favourites.ico`) and page title are shared by every palette. Palette mechanics live in [`src/theme/palettes.css`](../src/theme/palettes.css) and [`src/theme/ThemeContext.tsx`](../src/theme/ThemeContext.tsx).
 
 ## The reports at a glance
 
