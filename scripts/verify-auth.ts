@@ -51,7 +51,6 @@ const matrix: Array<[string, string, string[] | null]> = [
   ['POST', '/api/communications/preview', ['analyst', 'manager', 'admin']],
   ['POST', '/api/users', ['admin']],
   ['PATCH', '/api/users/1', ['admin']],
-  ['POST', '/api/seed/reset', ['admin']],
 ];
 
 for (const [method, path, expected] of matrix) {

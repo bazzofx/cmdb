@@ -891,14 +891,14 @@ const OwnershipExplorerInternal: React.FC<OwnershipExplorerViewProps> = ({
   return (
     <div className="space-y-3 max-w-full h-[calc(100vh-5.5rem)] flex flex-col select-none bg-[var(--app-bg)] text-[var(--text-primary)]">
       {/* 1. TOP COMPACT CONTROL TOOLBAR (Strictly Single-Line Layout) */}
-      <div className="px-3 py-2 rounded-xl bg-[var(--surface-2)]/90 border border-slate-800/80 shadow-xl backdrop-blur-md flex items-center justify-between gap-2.5 shrink-0 flex-nowrap overflow-x-auto">
+      <div className="px-2 py-2 rounded-xl bg-[var(--surface-2)]/90 border border-slate-800/80 shadow-xl backdrop-blur-md flex items-center justify-between gap-2.5 shrink-0 flex-nowrap overflow-x-auto">
         {/* Title & Count Badge */}
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-sm shrink-0">
-            <GitFork className="w-22 h-4" />
+            <GitFork className="w-8 h-4" />
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <h1 className="text-lg font-bold text-white tracking-wider font-sans shrink-0 uppercase">
+            <h1 className="text-2xl sm:text-xl font-extrabold text-white tracking-tight font-sans">
               Ownership Graph
             </h1>
           </div>

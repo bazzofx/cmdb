@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'infrastructure-map',
-      label: 'Infrastructure Map',
+      label: 'Topology Map',
       icon: Network,
     },
     {
@@ -189,7 +189,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Crag & Samurai silhouette SVG */}
             <svg
               viewBox="0 0 200 80"
-              className="w-full h-full object-cover opacity-85 pointer-events-none"
+              className="art-silhouette w-full h-full object-cover opacity-85 pointer-events-none"
+              style={{ color: 'var(--art-silhouette)' }}
               preserveAspectRatio="xMidYMax meet"
             >
               <defs>
@@ -203,19 +204,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Forefront rocky bluff */}
               <polygon points="0,80 20,45 55,42 90,62 140,80" fill="url(#rock-grad)" />
               {/* Silhouette warrior standing with sword */}
-              <g className="art-silhouette" transform="translate(36, 18) scale(0.65)">
+              <g transform="translate(36, 18) scale(0.65)" fill="currentColor" stroke="currentColor">
                 {/* Head / helmet with horns */}
-                <circle cx="15" cy="10" r="4.5" fill="currentColor" />
-                <path d="M11 7 L9 2 L13 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M19 7 L21 2 L17 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="15" cy="10" r="4.5" />
+                <path d="M11 7 L9 2 L13 6" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                <path d="M19 7 L21 2 L17 6" strokeWidth="1.5" strokeLinecap="round" fill="none" />
                 {/* Torso / Armor */}
-                <path d="M9 14 L21 14 L18 27 L12 27 Z" fill="currentColor" />
+                <path d="M9 14 L21 14 L18 27 L12 27 Z" />
                 {/* Cape / Robe flowing */}
-                <path d="M9 15 Q4 22 2 35 Q10 32 15 30 Z" fill="currentColor" />
+                <path d="M9 15 Q4 22 2 35 Q10 32 15 30 Z" />
                 {/* Legs */}
-                <path d="M12 27 L10 40 M18 27 L20 40" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <path d="M12 27 L10 40 M18 27 L20 40" strokeWidth="3" strokeLinecap="round" fill="none" />
                 {/* Sword / Katana */}
-                <line x1="6" y1="18" x2="2" y2="38" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="6" y1="18" x2="2" y2="38" strokeWidth="1.5" strokeLinecap="round" />
               </g>
             </svg>
           </div>

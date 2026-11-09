@@ -102,17 +102,9 @@ cp data/cmdb.sqlite  data/cmdb.sqlite.backup-$(date +%F)
 
 Restore by replacing both files while the server is stopped, then start again. A legacy `data/csm_database.json` is only a pre-migration artifact, not the source of truth. Keep backups outside `data/` (everything under `data/` is git-ignored).
 
-## 5. Reset to demo data
+## 5. Demo data
 
-In the UI: **Data Sync → Reset Demo Data** (destructive; confirm the dialog).
-
-Or via the API:
-
-```bash
-curl -X POST http://localhost:3000/api/seed/reset
-```
-
-This re-seeds servers, incidents, patch campaigns and clears audit logs and import history in `data/cmdb.sqlite`. The user database `data/auth.sqlite` (users + sessions) is untouched. In production this endpoint is refused unless `ALLOW_SEED_RESET=1`.
+There is no in-app demo reset and no `/api/seed/reset` endpoint. The bundled demo dataset is seeded only on a fresh installation with no servers. A normal data refresh must use the CSV import workflow in section 6.
 
 ## 6. Import a server CSV
 

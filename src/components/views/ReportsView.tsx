@@ -258,9 +258,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onSelectServer, onFilt
             <FileBarChart2 className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-wide">OPERATIONAL REPORTING ENGINE</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white">Operational Reporting Engine</h1>
             <p className="text-xs text-slate-400">
-              {definitions.length} standard reports built from the live server, incident and patching data.
+              {definitions.length} standard reports built from the live servers, incident and patching data.
             </p>
           </div>
         </div>

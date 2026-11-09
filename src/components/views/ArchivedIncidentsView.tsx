@@ -171,8 +171,8 @@ export const ArchivedIncidentsView: React.FC<ArchivedIncidentsViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-white tracking-wide font-sans">
-                ARCHIVED INCIDENTS REPOSITORY
+              <h1 className="text-xl font-bold tracking-tight text-white">
+                Archive Incidents Repository
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase font-semibold">
                 {archivedIncidents.length} Archived

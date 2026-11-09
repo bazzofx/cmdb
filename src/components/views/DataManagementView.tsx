@@ -6,7 +6,6 @@ import {
   Check,
   AlertTriangle,
   ArrowRight,
-  RefreshCw,
   Clock,
   AlertCircle,
   FileText,
@@ -123,22 +122,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({ onRefres
     setErrorMessage(null);
   };
 
-  const restoreInitialSeed = async () => {
-    if (confirm('Are you sure you want to re-seed the database to the initial 9 CSM records?')) {
-      setLoading(true);
-      try {
-        await api.resetDatabase();
-        alert('Database successfully restored to original seed inventory.');
-        onRefreshData();
-        loadHistory();
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -148,22 +131,14 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({ onRefres
             <Database className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-wide">
-              DATA MANAGEMENT & 5-STAGE CSV IMPORT ENGINE
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              Data Management & Stage Import Engine
             </h1>
             <p className="text-xs text-slate-400">
               Ingest infrastructure records, map CSM attributes, validate data hygiene, and execute safe database synchronisation.
             </p>
           </div>
         </div>
-
-        <button
-          onClick={restoreInitialSeed}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 text-xs font-mono cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Reset to Demo Seed</span>
-        </button>
       </div>
 
       {/* 5-STAGE STEPPER INDICATOR (Section 4.1) */}

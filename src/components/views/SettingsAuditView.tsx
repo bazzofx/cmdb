@@ -51,8 +51,8 @@ export const SettingsAuditView: React.FC = () => {
             <Settings className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-wide">
-              SECURITY, ROLE-BASED ACCESS & AUDIT LOGS
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              Security, Role-Based Access & Audit Logs
             </h1>
             <p className="text-xs text-slate-400">
               Audit trail of all administrative mutations, user roles, and database persistence status.

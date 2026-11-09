@@ -307,11 +307,4 @@ export const api = {
   // Audit logs
   getAuditLogs: () =>
     request<AuditLogEvent[]>('/audit-logs', { failure: 'Failed to fetch audit logs' }),
-
-  // Reset demo seed
-  resetDatabase: () =>
-    request<{ success: boolean; count: number }>('/seed/reset', {
-      method: 'POST',
-      failure: 'Failed to reset database',
-    }),
 };

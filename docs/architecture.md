@@ -150,7 +150,7 @@ Authentication routes are outside `/api`:
 | Patching | `GET /patching/campaigns`, `POST /patching/campaigns`, `GET /patching/campaigns/:id`, `PUT /patching/campaigns/:id`, `PUT /patching/campaigns/:id/servers/:serverId` |
 | Communications | `POST /communications/preview` |
 | Imports | `POST /imports/preview`, `POST /imports/execute`, `GET /imports/history` |
-| Audit / seed | `GET /audit-logs`, `POST /seed/reset` |
+| Audit | `GET /audit-logs` |
 
 `PUT /incidents/:id/hosts/:serverId` has a single canonical handler which matches an incident by ID or reference and upserts the host detail.
 
@@ -181,7 +181,7 @@ Views are presentational and receive callbacks; none of them talk to each other 
 - On startup, `Database.init()` creates `data/` if needed, reads the JSON file, sanitises every server record (trims, strips nulls and zero-width characters, lower-cases emails) and immediately saves.
 - If the file is missing or unparsable, the database re-seeds from `public/assets/aistudio/MOCKUP_CSM_Servers_-_Copy_c00cddf2.csv` (with a hard-coded fallback CSV), including one demo incident and one patch campaign.
 - `save()` rewrites the entire file synchronously with two-space JSON. There is no debounce, so a burst of edits means a burst of full-file writes.
-- `POST /seed/reset` deletes the current estate and re-seeds from the CSV. Audit logs and import history are also reset. In production it is refused unless `ALLOW_SEED_RESET=1`.
+- The initial demo dataset is seeded only when a fresh database has no servers. There is no manual reset endpoint or in-app reset control.
 - Audit logs are capped at the newest 5000 events by default (`AUDIT_LOG_LIMIT`).
 
 ## 8. Conventions

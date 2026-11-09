@@ -678,11 +678,11 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-white tracking-wide">
-                INCIDENT TRIAGE & REMEDIATION COMMAND CENTER
+              <h1 className="text-xl font-bold tracking-tight text-white">
+                Incident Triage of Alerts and Vulnerabilities
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase">
-                Metrics & Triage
+                Command Center
               </span>
             </div>
             <p className="text-xs text-slate-400">

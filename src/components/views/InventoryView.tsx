@@ -569,8 +569,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <Server className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-wide">
-              SERVER INFRASTRUCTURE INVENTORY
+            <h1 className="text-2xl sm:text-xl font-extrabold text-white tracking-tight font-sans">
+              Server Infrastructure Inventory
             </h1>
             <p className="text-xs text-slate-400 font-mono">
               Showing {servers.length} of {total} indexed hosts

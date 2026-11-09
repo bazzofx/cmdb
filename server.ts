@@ -2259,13 +2259,8 @@ async function startServer() {
   });
 
   // 15. RESET / SEED
-  api.post('/seed/reset', (req: Request, res: Response) => {
-    if (IS_PRODUCTION && process.env.ALLOW_SEED_RESET !== '1') {
-      return res.status(403).json({ error: 'Seed reset is disabled in production.' });
-    }
-    const count = seedFromDefaultCsv();
-    res.json({ success: true, count });
-  });
+  // The manual demo-reset endpoint was removed. The initial demo dataset is
+  // still seeded automatically only when a fresh database has no servers.
 
   // Mount API router
   app.use('/api', api);

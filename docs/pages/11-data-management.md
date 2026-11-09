@@ -55,11 +55,10 @@ The page is a wizard, not a form: each stage must be reached in order from the p
 | Commit the import | Stage 4, **Execute Import Now** |
 | Read the outcome counts | Stage 5 tiles |
 | Audit a previous import | **Historical Import Audits (n)** table |
-| Restore the demo data | **Reset to Demo Seed** in the header |
 
 ## 3. Screen walkthrough
 
-**Header.** The title **DATA MANAGEMENT & 5-STAGE CSV IMPORT ENGINE** with a subtitle, and a single action on the right: **Reset to Demo Seed**.
+**Header.** The title **DATA MANAGEMENT & 5-STAGE CSV IMPORT ENGINE** with a subtitle. There is no header action; all work starts at Stage 1.
 
 **Stepper.** A five-cell strip that always shows all stages: **Upload CSV**, **Column Mapping**, **Hygiene Preview**, **Import Strategy**, **Summary & Audit**. The current stage is blue, completed stages are green with a tick, future stages are grey. The strip is an indicator only — the cells are not clickable.
 
@@ -105,7 +104,7 @@ Buttons: **Back**, and **Execute Import Now**, which becomes **Executing Import.
 
 **Run a standard monthly refresh.**
 
-1. Do **not** click **Reset to Demo Seed** for a routine refresh. Go straight to **Choose Local File** and pick the CSM extract.
+1. Start at **Choose Local File** and pick the CSM extract.
 2. On Stage 2, scan the right-hand column for `→ unmapped` entries. Rename those headers in the CSV if they carry data you need, then upload again.
 3. On Stage 3, read **Validation Issues**. Fix missing managers and emails at source where possible; the import will still accept those rows.
 4. On Stage 4, keep **Mode 2: Update Existing & Insert New Records**.
@@ -124,20 +123,13 @@ Buttons: **Back**, and **Execute Import Now**, which becomes **Executing Import.
 2. Compare the **Strategy** and **New**/**Updated** columns across runs.
 3. Cross-check the same window in Settings & Audit, filtering for `IMPORT_CSV`.
 
-**Restore the demo dataset.**
-
-1. Click **Reset to Demo Seed**.
-2. Confirm the browser dialog: "Are you sure you want to re-seed the database to the initial 9 CSM records?"
-3. Accept the follow-up "Database successfully restored to original seed inventory." alert.
-4. The header counters refresh; a new `INITIAL_IMPORT` history row replaces the previous history.
-
 ## 6. Gotchas and guardrails
 
 - Data Sync is visible only to `manager` and `admin`; the imports API returns `403` for viewers and analysts.
 
 **Destructive behaviour.**
 
-- **Reset to Demo Seed** replaces the entire server table with nine seed records and also overwrites incidents, patch campaigns, audit logs and import history. It is not a targeted rollback, and there is no audit entry recording that it happened.
+- There is no in-app demo reset. The demo dataset is seeded only on a fresh installation with no servers.
 - Mode 2 and Mode 3 overwrite every mapped field on a matched record. An empty cell in the CSV blanks the corresponding field in the database; the importer does not treat blank as "leave unchanged".
 - Mode 3 never deletes, but it silently sets `is_missing_from_source` on every unmatched record. Importing a partial CSV with **Synchronise** selected will flag most of the estate as disappeared.
 
@@ -164,7 +156,7 @@ Buttons: **Back**, and **Execute Import Now**, which becomes **Executing Import.
 
 | Prop | Type | Purpose |
 |---|---|---|
-| `onRefreshData` | `() => void` | Called after a successful import and after a seed reset; `App.loadDashboardData` re-fetches `/api/stats`, `/api/audit-logs` and `/api/incidents` to refresh the navbar and sidebar counters |
+| `onRefreshData` | `() => void` | Called after a successful import; `App.loadDashboardData` re-fetches `/api/stats`, `/api/audit-logs` and `/api/incidents` to refresh the navbar and sidebar counters |
 
 **Local state.**
 
@@ -187,7 +179,6 @@ Buttons: **Back**, and **Execute Import Now**, which becomes **Executing Import.
 | File chosen or sample loaded | `POST /api/imports/preview` `{ csv_content }` | `{ total_rows, detected_columns, suggested_mapping, preview[] }`; `preview[]` items are `{ row_number, server, issues, has_warnings }` |
 | **Execute Import Now** | `POST /api/imports/execute` `{ csv_content, filename, strategy, user }` | `{ summary: ImportHistoryItem, total_in_database: number }` |
 | After execute | `GET /api/imports/history` and `onRefreshData()` | |
-| **Reset to Demo Seed** | `POST /api/seed/reset` | `{ success, count }`; then `onRefreshData()` and a history reload |
 
 **Server-side import semantics.** `parseCsvToServers` maps columns by exact header name (`Host`, `VM`, `Support Team`, `PowerState`, `Primary IP Address`, `1_BusinessUnit`, `2_SubBusinessUnit`, `4_Product`, `5_Function`, `6_Environmen`, `7_OrganisationShortCode`, `8_OrganisationAbbreviated`, `Datacenter`, `Network #1–3`), with a lowercase alternative accepted for most fields. Every row passes through `sanitizeServerRecord`, which strips NUL, zero-width and BOM characters, removes carriage returns, trims, lowercases `email`, defaults `power_state` to `poweredOn`, coerces `efi_secure_boot` to `true`/`false`/`null` from `TRUE`/`FALSE`, regenerates a UUID when `id` is absent, and stamps `updated_at` with the current time. `imported_at` is also set to parse time, so an update overwrites the original first-seen date.
 
@@ -196,7 +187,7 @@ Strategy handling in `POST /api/imports/execute`:
 - `insert` — if the key exists, `duplicate_records++`; otherwise push and `new_records++`.
 - `update` — if the key exists, replace with `{ ...old, ...row, id: old.id, updated_at: now }` and `updated_records++`; otherwise push and `new_records++`.
 - `synchronise` — as `update`, plus `is_missing_from_source: false`; afterwards every stored record whose key was not processed gets `is_missing_from_source = true`.
-- Every run appends an `ImportHistoryItem` (`status` is `Completed with warnings` when `failed_records > 0`) and writes exactly one audit event: `db.logAudit(user, 'IMPORT_CSV', 'INVENTORY', <history id>, null, null, 'Imported N records (<strategy>): X new, Y updated')`. Preview writes no audit event. No event is written for a seed reset.
+- Every run appends an `ImportHistoryItem` (`status` is `Completed with warnings` when `failed_records > 0`) and writes exactly one audit event: `db.logAudit(user, 'IMPORT_CSV', 'INVENTORY', <history id>, null, null, 'Imported N records (<strategy>): X new, Y updated')`. Preview writes no audit event.
 
 **Cross-view navigation.** None. The page never switches view or passes filters; it only calls `onRefreshData`.
 

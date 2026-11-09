@@ -167,7 +167,6 @@ export function requiredRolesFor(method: string, apiPath: string): UserRole[] | 
     return null;
   }
 
-  if (path.startsWith('/seed')) return ['admin'];
   if (path.startsWith('/me')) return null;
   if (path.startsWith('/users')) return ['admin'];
   if (path.startsWith('/settings')) return ['admin'];
