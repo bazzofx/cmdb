@@ -154,7 +154,7 @@ Authentication routes are outside `/api`:
 
 `PUT /incidents/:id/hosts/:serverId` has a single canonical handler which matches an incident by ID or reference and upserts the host detail.
 
-**Browser origins and CORS.** `ALLOWED_ORIGINS` (comma-separated) is the trusted cross-origin allowlist, used by both the CORS middleware and the Origin/CSRF check; `APP_URL` and the request's own host are also accepted. The built-in deployment entries are `http://***.***.151.184:3000` and `http://soc-cmdb.development.local:3000`. `OPTIONS` preflights are answered only for allowed origins, and disallowed origins receive `403`. Vite's separate host check is controlled by `VITE_ALLOWED_HOSTS` in `vite.config.ts`.
+**Browser origins and CORS.** `ALLOWED_ORIGINS` (comma-separated) is the trusted cross-origin allowlist, used by both the CORS middleware and the Origin/CSRF check; `APP_URL` and the request's own host are also accepted. The built-in deployment entries are `http://***.***.151.184:3001`, `http://soc-cmdb.development.local:3001`, `https://soc-cmdb.cybersamurai.co.uk` and `http://***.***.21.180:3001`, plus their direct HTTP/HTTPS variants. `OPTIONS` preflights are answered only for allowed origins, and disallowed origins receive `403`. Vite's separate host check is controlled by `VITE_ALLOWED_HOSTS` in `vite.config.ts`.
 
 ## 6. Frontend composition
 

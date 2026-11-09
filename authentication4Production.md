@@ -55,7 +55,7 @@ AUTH_MODE=local
 NODE_ENV=production
 PORT=3001
 APP_URL=https://cmdb.example.internal
-ALLOWED_ORIGINS=http://***.***.151.184:3001,http://soc-cmdb.development.local:3000
+ALLOWED_ORIGINS=http://***.***.151.184:3001,http://soc-cmdb.development.local:3001,https://soc-cmdb.cybersamurai.co.uk,http://***.***.21.180:3001
 COOKIE_SECURE=1
 TRUST_PROXY=1
 SESSION_TTL_HOURS=12
@@ -72,7 +72,7 @@ Set `cmdbUser`/`cmdbPass` in the process environment, not in the `.env` file. Th
 
 `APP_URL` must match the browser origin exactly (scheme, host and port). The request's own host is always accepted, but an exact `APP_URL` avoids surprises behind proxies.
 
-`ALLOWED_ORIGINS` is a comma-separated allowlist for browser origins that are trusted to call the API cross-origin. It is used by both the CORS middleware and the Origin/CSRF check. The built-in deployment origins include `http://***.***.151.184:3001` and `http://soc-cmdb.development.local:3001`; `APP_URL` is added automatically. For Vite's dev host check, set `VITE_ALLOWED_HOSTS` to the same comma-separated hostnames (no scheme, no port). Preflight `OPTIONS` requests are answered only for allowed origins; disallowed origins receive `403`.
+`ALLOWED_ORIGINS` is a comma-separated allowlist for browser origins that are trusted to call the API cross-origin. It is used by both the CORS middleware and the Origin/CSRF check. The built-in deployment origins include `http://***.***.151.184:3001`, `http://soc-cmdb.development.local:3001`, `https://soc-cmdb.cybersamurai.co.uk` and `http://***.***.21.180:3001` (plus their direct HTTP/HTTPS variants); `APP_URL` is added automatically. For Vite's dev host check, set `VITE_ALLOWED_HOSTS` to the same comma-separated hostnames (no scheme, no port). Preflight `OPTIONS` requests are answered only for allowed origins; disallowed origins receive `403`.
 
 ## 4. First-run and handover procedure
 

@@ -62,9 +62,16 @@ const normalizeOrigin = (value: string): string | null => {
 const ALLOWED_ORIGINS = new Set<string>();
 [
   'http://10.102.151.184:3001',
+  'https://10.102.151.184:3001',
   'http://soc-cmdb.development.local:3001',
   'http://soc-cmdb.development.local',
   'https://soc-cmdb.development.local',
+  'https://soc-cmdb.cybersamurai.co.uk',
+  'http://soc-cmdb.cybersamurai.co.uk',
+  'http://soc-cmdb.cybersamurai.co.uk:3001',
+  'https://soc-cmdb.cybersamurai.co.uk:3001',
+  'http://172.236.21.180:3001',
+  'https://172.236.21.180:3001',
 ].forEach(origin => {
   const normalized = normalizeOrigin(origin);
   if (normalized) ALLOWED_ORIGINS.add(normalized);

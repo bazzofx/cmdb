@@ -8,7 +8,9 @@ export default defineConfig(() => {
     'localhost',
     '127.0.0.1',
     '10.102.151.184',
+    '172.236.21.180',
     'soc-cmdb.development.local',
+    'soc-cmdb.cybersamurai.co.uk',
     ...(process.env.VITE_ALLOWED_HOSTS || '')
       .split(',')
       .map(host => host.trim())
