@@ -648,6 +648,16 @@
   animation: cyber-atmosphere-in 1.2s ease forwards;
 }
 
+/* Login uses the same particle field above the page background but below the
+   sign-in card. */
+.login-atmosphere {
+  z-index: 0;
+}
+
+.login-shell {
+  background-color: transparent;
+}
+
 [data-theme="cyber"] body {
   background-image:
     radial-gradient(circle at 15% 15%, rgba(124, 58, 237, 0.16), transparent 42%),

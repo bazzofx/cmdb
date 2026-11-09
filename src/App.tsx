@@ -140,6 +140,7 @@ function AppShell() {
 
   return (
     <div className="app-shell min-h-screen bg-[var(--app-bg)] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
+      <CyberAtmosphere />
       {/* 1. Global Navbar */}
       <Navbar
         onOpenSearch={() => setIsSearchOpen(true)}
@@ -312,7 +313,6 @@ function AppShell() {
 export function App() {
   return (
     <ThemeProvider>
-      <CyberAtmosphere />
       <AuthProvider>
         <AppShell />
       </AuthProvider>

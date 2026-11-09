@@ -15,14 +15,25 @@ const PARTICLE_COLORS = ['#22D3EE', '#7C3AED', '#F0ABFC', '#60A5FA'];
 /**
  * Ambient Cyber-theme layer. A fixed canvas of slow-drifting nodes and links
  * sits behind the application, so it shows through the translucent surfaces.
- * It is never rendered for the other palettes.
+ * It is never rendered for the other palettes unless `force` is set, which the
+ * login screen uses for its ambient background.
  */
-export const CyberAtmosphere: React.FC = () => {
+interface CyberAtmosphereProps {
+  force?: boolean;
+  topology?: boolean;
+  className?: string;
+}
+
+export const CyberAtmosphere: React.FC<CyberAtmosphereProps> = ({
+  force = false,
+  topology = false,
+  className = '',
+}) => {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (theme !== 'cyber') return;
+    if (theme !== 'cyber' && !force) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -85,13 +96,14 @@ export const CyberAtmosphere: React.FC = () => {
           const dx = particle.x - other.x;
           const dy = particle.y - other.y;
           const distance = Math.hypot(dx, dy);
-          if (distance > 135) continue;
+          const linkDistance = topology ? 240 : 135;
+          if (distance > linkDistance) continue;
           context.beginPath();
           context.moveTo(particle.x, particle.y);
           context.lineTo(other.x, other.y);
           context.strokeStyle = particle.color;
-          context.globalAlpha = (1 - distance / 135) * 0.16;
-          context.lineWidth = 0.7;
+          context.globalAlpha = (1 - distance / linkDistance) * (topology ? 0.3 : 0.16);
+          context.lineWidth = topology ? 0.8 : 0.7;
           context.stroke();
         }
       }
@@ -108,9 +120,9 @@ export const CyberAtmosphere: React.FC = () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', resize);
     };
-  }, [theme]);
+  }, [theme, force, topology]);
 
-  if (theme !== 'cyber') return null;
+  if (theme !== 'cyber' && !force) return null;
 
-  return <canvas ref={canvasRef} className="cyber-atmosphere" aria-hidden="true" />;
+  return <canvas ref={canvasRef} className={`cyber-atmosphere ${className}`.trim()} aria-hidden="true" />;
 };

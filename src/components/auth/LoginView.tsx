@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Mail, AlertTriangle } from 'lucide-react';
+import { CyberAtmosphere } from '../common/CyberAtmosphere.js';
 
 interface LoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -25,8 +26,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="app-shell min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl soc-glass-panel border border-white/10 p-7 shadow-2xl">
+    <div className="app-shell login-shell relative min-h-screen flex items-center justify-center p-6 overflow-hidden">
+      <CyberAtmosphere force topology className="login-atmosphere" />
+      <div className="relative z-10 w-full max-w-md rounded-2xl soc-glass-panel border border-white/10 p-7 shadow-2xl">
         <div className="flex flex-col items-center gap-5 mb-6">
           <img
             src="/assets/logo.png"
