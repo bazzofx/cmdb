@@ -17,6 +17,7 @@ import { todayIso } from '../../utils/format.js';
 
 interface CommunicationsViewProps {
   initialServerIds?: string[];
+  initialContactId?: string;
 }
 
 /**
@@ -29,10 +30,11 @@ const contactKey = (contact: CommunicationsPreview['contacts'][number]): string 
 
 export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
   initialServerIds,
+  initialContactId,
 }) => {
   const [data, setData] = useState<CommunicationsPreview | null>(null);
 
-  const [selectedTemplate, setSelectedTemplate] = useState<'incident' | 'vulnerability' | 'patching' | 'maintenance' | 'ownership'>('incident');
+  const [selectedTemplate, setSelectedTemplate] = useState<'incident' | 'vulnerability' | 'patching' | 'ownership'>('incident');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
 
   // Template variables
@@ -49,7 +51,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
 
   // The directory is single-select: one stakeholder is previewed/emailed at a
   // time so the template always shows that owner's linked servers.
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(initialContactId ?? null);
   const previewRequestRef = useRef(0);
 
   const selectedContact = data?.contacts.find(c => contactKey(c) === selectedContactId) ?? null;
@@ -326,14 +328,13 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({
             </div>
           )}
 
-          {/* Template Selectors (Section 14.3: 5 reusable templates) */}
+          {/* Template Selectors (Section 14.3: 4 reusable templates) */}
           <div className="flex flex-wrap gap-1.5 text-xs font-mono">
             {[
               { id: 'incident', label: '1. Security Incident' },
               { id: 'vulnerability', label: '2. Vulnerability Notice' },
               { id: 'patching', label: '3. Patching Request' },
-              { id: 'maintenance', label: '4. Datacenter Maintenance' },
-              { id: 'ownership', label: '5. Ownership Hygiene' },
+              { id: 'ownership', label: '4. Ownership Hygiene' },
             ].map(t => (
               <button
                 key={t.id}

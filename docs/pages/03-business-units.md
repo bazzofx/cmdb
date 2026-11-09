@@ -25,6 +25,8 @@ It is a read-only explorer. Nothing can be edited, renamed or reassigned here; t
 | Find a unit by name, org code or customer | "Search business units or codes..." |
 | See a unit's manager list and counts | Click the unit card |
 | List every manager in a unit with email | Detail → "Designated Managers" panel |
+| Email a manager with selected servers | Detail → tick hosts in "Servers Allocated to…" → **Contact** on the manager row |
+| Build a contact list for the unit | Detail → **Contact List** in the header (uses selected servers, or all servers in the unit) |
 | See which products and sub-units a unit owns | Detail → "Sub-Units & Products" panel |
 | See datacenters and workload functions | Detail → "Datacenters & Roles" panel |
 | Find which networks a unit uses | Detail → "Attached Networks" panel |
@@ -41,15 +43,15 @@ It is a read-only explorer. Nothing can be edited, renamed or reassigned here; t
 
 **List states.** While loading, a full-width line reads "Loading business unit ownership directories...". If the search matches nothing, "No business units match your query." The search matches unit name, organisation short code and customer, case-insensitively, and has no debounce or clear button.
 
-**Detail screen header.** A back arrow (tooltip "Back to all business units"), the unit name with a "Business Unit Detail" badge, and the line "<N> Total Assets • <M> Powered On". On the right, a blue "View in Inventory Table" button with an external-link icon.
+**Detail screen header.** A back arrow (tooltip "Back to all business units"), the unit name with a "Business Unit Detail" badge, and the line "<N> Total Assets • <M> Powered On". On the right, a purple **Contact List** button (same action as Inventory's Contact List) and a blue "View in Inventory Table" button with an external-link icon. Contact List uses the ticked servers, or every server in the unit when nothing is selected.
 
 **Detail panels (four columns).**
-1. "Designated Managers (n)" — one clickable row per manager showing the name, an amber `n svr` pill and the email in monospace when known. Clicking filters Inventory by that manager.
+1. "Designated Managers (n)" — one clickable row per manager showing the name, an amber `n svr` pill, a **Contact** button and the email in monospace when known. Clicking the row filters Inventory by that manager; clicking **Contact** opens Communications with that manager preselected. If servers are ticked in the table, only those servers form the email scope; otherwise all of that manager's servers in the unit are used.
 2. "Sub-Units & Products" — two chip lists, "Sub-Business Units:" in indigo and "Products:" in blue. These chips are not clickable.
 3. "Datacenters & Roles" — "Hosting Datacenters:" chips in cyan and "Workload Functions:" chips in grey. Not clickable.
 4. "Attached Networks (n)" — one clickable monospace row per network name; clicking filters Inventory by that network.
 
-**Detail server table.** Titled "Servers Allocated to <unit> (<n>)", with a "Search within this BU..." input on the right. Headings: Host, VM, Manager, IP Address, Datacenter, Product, Function, Power, Secure Boot. Rows are clickable and open the detail drawer; power is a green/rose pill and secure boot reads `TRUE`, `FALSE` or `UNK`. The in-table search is client-side over host, VM, manager, primary IP, product and function only.
+**Detail server table.** Titled "Servers Allocated to <unit> (<n>)", with a "Search within this BU..." input and selection controls on the right. Each row has a checkbox; the header checkbox selects or clears all currently filtered rows, and a "N selected / Clear" chip appears when a selection exists. Headings: a selection column, Host, VM, Manager, IP Address, Datacenter, Product, Function, Power, Secure Boot. Rows are clickable and open the detail drawer; power is a green/rose pill and secure boot reads `TRUE`, `FALSE` or `UNK`. The in-table search is client-side over host, VM, manager, primary IP, product and function only. The selection resets when switching units.
 
 **Detail loading and failure.** There is no spinner in detail mode. `selectedBuDetail` is kept from the previous selection, so the shell can briefly show the previous unit's name and figures while the new request is in flight. A failed detail request only logs to the console and leaves the previous content on screen.
 
@@ -115,8 +117,9 @@ It is a read-only explorer. Nothing can be edited, renamed or reassigned here; t
 
 - `onSelectServer: (id: string) => void` — server-table row click; opens `ServerDetailDrawer` in `App`.
 - `onFilterInventory: (filters: Record<string, string>) => void` — wired in `App` to `handleNavigate('inventory', filters)` for "View in Inventory Table", manager rows and network rows.
+- `onOpenCommunicationsWithServers: (serverIds: string[], contactId?: string) => void` — opens Communications with the selected server scope and, when provided, the manager contact preselected.
 
-**Local state and side effects.** State: `buList` (`any[]`), `selectedBuName` (`string | null`, the mode switch), `selectedBuDetail` (`any | null`), `loading` (initial `true`), `search`, `detailFilter`. One effect on mount calls `loadBusinessUnits()`. The two loaders are plain `async` functions with `try/catch/finally`; errors are `console.error` only, with no user-visible error state.
+**Local state and side effects.** State: `buList` (`any[]`), `selectedBuName` (`string | null`, the mode switch), `selectedBuDetail` (`any | null`), `loading` (initial `true`), `search`, `detailFilter`, `selectedServerIds` (`Set<string>`). One effect on mount calls `loadBusinessUnits()`. The two loaders are plain `async` functions with `try/catch/finally`; errors are `console.error` only, with no user-visible error state.
 
 **API calls with query parameters and response shape.**
 
@@ -131,6 +134,8 @@ It is a read-only explorer. Nothing can be edited, renamed or reassigned here; t
 | "View in Inventory Table" | `{ business_unit: <unit name> }` |
 | Manager row | `{ manager: <manager name> }` |
 | Network row | `{ network: <network name> }` |
+| Manager **Contact** | `onOpenCommunicationsWithServers(selected IDs or manager's server IDs, manager email key)` |
+| Header **Contact List** | `onOpenCommunicationsWithServers(selected IDs or all unit server IDs)` |
 
 Server rows call `onSelectServer(id)` and stay in place. Note that the list endpoint also returns `sub_business_units`, `managers` (as strings), `support_teams` and `datacenters`, which would allow more drill-throughs than are currently wired.
 

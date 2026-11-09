@@ -2015,10 +2015,6 @@ async function startServer() {
         subject: `[PATCHING REQUEST] Maintenance Window Scheduling - {{business_unit}}`,
         body: `Dear {{manager_name}},\n\nThe upcoming quarterly OS and hypervisor security patch cycle requires scheduling for your systems in {{business_unit}}.\n\nTarget Completion Date: {{target_completion_date}}\nNumber of Servers: {{affected_server_count}}\n\nHosts:\n{{affected_servers}}\n\nPlease reply with your approved maintenance downtime window.\n\nBest regards,\nInfrastructure Operations`,
       },
-      maintenance: {
-        subject: `[INFRASTRUCTURE NOTICE] Datacenter Network & Firmware Maintenance`,
-        body: `Dear {{manager_name}},\n\nScheduled maintenance is planned for the hypervisors and network fabrics supporting {{business_unit}}.\n\nServers Impacted:\n{{affected_servers}}\n\nEstimated downtime: ~15 minutes per host failover. Automated HA will keep impact minimal.\n\nBest regards,\nInfrastructure Team`,
-      },
       ownership: {
         subject: `[OWNERSHIP CONFIRMATION] Verification of Asset Responsibility`,
         body: `Dear {{manager_name}},\n\nAs part of our periodic asset hygiene review, please confirm whether you remain the designated technical and operational manager for the following {{affected_server_count}} server(s) in {{business_unit}}:\n\n{{affected_servers}}\n\nIf any system has transitioned or been decommissioned, please notify us.\n\nThank you,\nConfiguration Management Team`,
@@ -2044,7 +2040,7 @@ async function startServer() {
 
     const formatServerList = (srvs: Array<{ host: string; vm: string; ip: string }>) =>
       srvs
-        .map(s => `  • Host: ${s.host} | VM: ${s.vm} | IP: ${maskIpForMessage(s.ip)}`)
+        .map(s => `  • VM: ${s.vm} | IP: ${maskIpForMessage(s.ip)}`)
         .join('\n');
 
     const previewSubject = chosen.subject

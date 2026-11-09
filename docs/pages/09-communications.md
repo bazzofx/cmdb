@@ -27,7 +27,7 @@ Because it is not in the sidebar, the practical entry point is a selection in In
 |---|---|
 | Message the owners of a set of servers | Inventory → tick rows → `Contact List` in the bulk bar |
 | Message the whole estate | There is no explicit control; opening the view without ids falls back to all servers |
-| Pick a message type | Template tabs `1. Security Incident` … `5. Ownership Hygiene` |
+| Pick a message type | Template tabs `1. Security Incident` … `4. Ownership Hygiene` |
 | Set reference, subject, severity and due date | The four-field variables bar above the preview |
 | Copy every valid address | `Copy All` in the `Stakeholder Directory` header |
 | Copy only the selected owner's address | `Copy Selected` in the `Stakeholder Directory` header |
@@ -45,7 +45,7 @@ Because it is not in the sidebar, the practical entry point is a selection in In
 
 **Stakeholder Directory (left, five of twelve columns).** Heading `Stakeholder Directory (N)` where N is the deduplicated contact count. The header carries `Copy All` (every valid address) and `Copy Selected` (just the selected owner's address), each switching to `Copied!` for two seconds; `Copy Selected` is disabled when the selected owner has no email. Cards are scrollable within roughly 500 px and show a radio button, the manager name, the business unit in purple, an `N svr` badge, and a bottom line with either the email address or an amber `No email in inventory` warning plus `Team: <support team>`. Clicking anywhere on a card selects that owner and immediately reloads the preview; selecting another card replaces the previous choice, so at most one radio is ever checked. Selected cards are outlined blue; missing-email cards are amber but remain selectable for previewing. On the first successful load the first contact is selected automatically. An empty directory renders an empty scroll area with `(0)` — there is no empty-state message.
 
-**Operational Message Templates (right, seven of twelve columns).** Heading plus a `Copy Formatted Email` button (copy icon, swapping to a green tick briefly). A blue `Previewing <manager> · <email>` banner below the heading names the owner the body is rendered for and shows how many linked servers they have. Below it, five tabs: `1. Security Incident`, `2. Vulnerability Notice`, `3. Patching Request`, `4. Datacenter Maintenance`, `5. Ownership Hygiene`; the active one is solid blue. Next is the variables bar: `Reference`, `Title / Subject`, `Severity` (Critical/High/Medium/Low) and `Target Due Date` (date input). Last is the preview: `Subject Line:` in blue, then `Message Body Preview:` in a monospaced block with the merged body, scrollable to roughly 288 px. The body's `Affected Systems` / `Hosts` section lists only the selected owner's servers, with each IPv4 rendered as `***.***.<third>.<fourth>`; a small `IPs masked as ***.***.x.x` note sits beside the body label.
+**Operational Message Templates (right, seven of twelve columns).** Heading plus a `Copy Formatted Email` button (copy icon, swapping to a green tick briefly). A blue `Previewing <manager> · <email>` banner below the heading names the owner the body is rendered for and shows how many linked servers they have. Below it, four tabs: `1. Security Incident`, `2. Vulnerability Notice`, `3. Patching Request` and `4. Ownership Hygiene`; the active one is solid blue. Next is the variables bar: `Reference`, `Title / Subject`, `Severity` (Critical/High/Medium/Low) and `Target Due Date` (date input). Last is the preview: `Subject Line:` in blue, then `Message Body Preview:` in a monospaced block with the merged body, scrollable to roughly 288 px. The body's `Affected Systems` / `Hosts` section lists only the selected owner's servers, each line as `VM: <vm> | IP: ***.***.<third>.<fourth>` (the host name is not included); a small `IPs masked as ***.***.x.x` note sits beside the body label.
 
 **Loading and empty states.** There is no loading flag or spinner. Before the first response the directory shows `(0)`, the metrics row and template preview are hidden, and the header actions are absent. A failed first request leaves the page in that empty state and only logs to the console; later failures leave the last successful data on screen.
 
@@ -78,7 +78,7 @@ Because it is not in the sidebar, the practical entry point is a selection in In
 ## 5. Common workflows
 
 1. **Scope the audience.** In Inventory, filter or search, tick the servers in scope, then press `Contact List` in the blue bulk bar. `App` stores the ids in `targetedServerIds` and switches to this view. The directory now lists only the managers behind those servers.
-2. **Choose and fill the template.** Pick one of the five tabs. Edit `Reference`, `Title / Subject`, `Severity` and `Target Due Date`. Free-text edits are debounced by 400 ms, so the body updates as you pause rather than on every keystroke.
+2. **Choose and fill the template.** Pick one of the four tabs. Edit `Reference`, `Title / Subject`, `Severity` and `Target Due Date`. Free-text edits are debounced by 400 ms, so the body updates as you pause rather than on every keystroke.
 3. **Pick the recipient.** Click an owner card in the directory; exactly one stays selected (radio style). The `Previewing` banner and the body update to that owner, and the `Hosts` section lists only their linked servers with IPs masked. Use the search/filter in Inventory first if the list is long — there is no filter inside this view.
 4. **Verify who is excluded.** Check `Missing Email Addresses` and the amber cards. Those managers can still be selected to inspect their preview, but `Copy Selected` and `Open in Email Client` are disabled for them; chase the data gap in Inventory first.
 5. **Copy and send.** Use `Copy All` for every valid address, or select one owner and use `Copy Selected`, then `Copy Formatted Email` for the subject and body. Alternatively press `Open in Email Client`, which opens a `mailto:` link addressed **To** the selected owner (single recipient), plus the encoded subject and masked body. Repeat selection-and-copy per owner when several people need the message.
@@ -101,11 +101,12 @@ Because it is not in the sidebar, the practical entry point is a selection in In
 
 ## 7. For developers
 
-**Component structure and props.** One function component, `CommunicationsView`, with two panels and no children. It takes a single optional prop:
+**Component structure and props.** One function component, `CommunicationsView`, with two panels and no children. It takes two optional props:
 
 | Prop | Type | What it does |
 |---|---|---|
 | `initialServerIds` | `string[] \| undefined` | Passed straight through as `server_ids` on every preview request. `undefined` or `[]` makes the server fall back to the entire estate. |
+| `initialContactId` | `string \| undefined` | Preselects one stakeholder by contact key, used when arriving from a Business Unit manager's **Contact** button. Falls back to the server's `preview_contact_id` if the key is not present. |
 
 There are no navigation callbacks, no `onSelectServer`, and no way for this view to send the user anywhere.
 
@@ -131,7 +132,7 @@ Stakeholder cards are keyed by `contact.id`, falling back to the email address (
 | Request field | Type | Server behaviour |
 |---|---|---|
 | `server_ids` | `string[]?` | Filters inventory by id; empty/absent means all servers |
-| `template_type` | `'incident' \| 'vulnerability' \| 'patching' \| 'maintenance' \| 'ownership'` | Selects the template; unknown values fall back to `incident` |
+| `template_type` | `'incident' \| 'vulnerability' \| 'patching' \| 'ownership'` | Selects the template; unknown values fall back to `incident` |
 | `contact_id` | `string?` | Selects the stakeholder whose preview is rendered; stale or unknown values fall back to the first contact |
 | `incident_reference` | `string?` | Merged into `{{incident_reference}}`, default `INC-2026-0842` |
 | `incident_title` | `string?` | Merged into `{{incident_title}}` |

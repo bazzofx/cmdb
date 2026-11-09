@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Search,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import type { ServerRecord } from '../../types/index.js';
@@ -16,17 +17,20 @@ import type { ServerRecord } from '../../types/index.js';
 interface BusinessUnitsViewProps {
   onSelectServer: (id: string) => void;
   onFilterInventory: (filters: Record<string, string>) => void;
+  onOpenCommunicationsWithServers: (serverIds: string[], contactId?: string) => void;
 }
 
 export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
   onSelectServer,
   onFilterInventory,
+  onOpenCommunicationsWithServers,
 }) => {
   const [buList, setBuList] = useState<any[]>([]);
   const [selectedBuName, setSelectedBuName] = useState<string | null>(null);
   const [selectedBuDetail, setSelectedBuDetail] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedServerIds, setSelectedServerIds] = useState<Set<string>>(new Set());
 
   // Sub-filter inside detail view
   const [detailFilter, setDetailFilter] = useState('');
@@ -49,6 +53,8 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
 
   const handleSelectBu = async (name: string) => {
     setSelectedBuName(name);
+    setSelectedServerIds(new Set());
+    setDetailFilter('');
     setLoading(true);
     try {
       const detail = await api.getBusinessUnitDetail(name);
@@ -66,6 +72,60 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
       b.organisation_short_code.toLowerCase().includes(search.toLowerCase()) ||
       b.customer.toLowerCase().includes(search.toLowerCase())
   );
+
+  const detailServers: ServerRecord[] = selectedBuDetail?.servers ?? [];
+  const filteredDetailServers = detailServers.filter((s: ServerRecord) => {
+    if (!detailFilter) return true;
+    const q = detailFilter.toLowerCase();
+    return (
+      (s.host || '').toLowerCase().includes(q) ||
+      (s.vm || '').toLowerCase().includes(q) ||
+      (s.manager || '').toLowerCase().includes(q) ||
+      (s.primary_ip_address || '').toLowerCase().includes(q) ||
+      (s.product || '').toLowerCase().includes(q) ||
+      (s.function || '').toLowerCase().includes(q)
+    );
+  });
+  const allFilteredSelected =
+    filteredDetailServers.length > 0 &&
+    filteredDetailServers.every(server => selectedServerIds.has(server.id));
+
+  const toggleServer = (id: string) => {
+    setSelectedServerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllFiltered = () => {
+    setSelectedServerIds(prev => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredDetailServers.forEach(server => next.delete(server.id));
+      } else {
+        filteredDetailServers.forEach(server => next.add(server.id));
+      }
+      return next;
+    });
+  };
+
+  const handleContactManager = (manager: any) => {
+    if (!selectedBuDetail) return;
+    const email = String(manager.email || '').trim().toLowerCase();
+    const managerServers = detailServers.filter((server: ServerRecord) =>
+      email
+        ? String(server.email || '').trim().toLowerCase() === email
+        : String(server.manager || '').trim() === manager.name
+    );
+    const scopeIds = selectedServerIds.size > 0
+      ? Array.from(selectedServerIds)
+      : managerServers.map(server => server.id);
+
+    if (scopeIds.length === 0) return;
+    onOpenCommunicationsWithServers(scopeIds, email || `no-email-${manager.name}`);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -177,7 +237,11 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
           <div className="flex items-center justify-between p-4 rounded-xl soc-glass-panel">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setSelectedBuName(null)}
+                onClick={() => {
+                  setSelectedBuName(null);
+                  setSelectedServerIds(new Set());
+                  setDetailFilter('');
+                }}
                 className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition-colors cursor-pointer"
                 title="Back to all business units"
               >
@@ -198,13 +262,34 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => onFilterInventory({ business_unit: selectedBuDetail?.name })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/30 text-xs font-medium cursor-pointer"
-            >
-              <span>View in Inventory Table</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  const scopeIds = selectedServerIds.size > 0
+                    ? Array.from(selectedServerIds)
+                    : detailServers.map(server => server.id);
+                  if (scopeIds.length > 0) onOpenCommunicationsWithServers(scopeIds);
+                }}
+                disabled={detailServers.length === 0}
+                title={
+                  selectedServerIds.size > 0
+                    ? `Build a contact list for ${selectedServerIds.size} selected server(s)`
+                    : 'Build a contact list for every server in this business unit'
+                }
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Contact List</span>
+              </button>
+
+              <button
+                onClick={() => onFilterInventory({ business_unit: selectedBuDetail?.name })}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/30 text-xs font-medium cursor-pointer"
+              >
+                <span>View in Inventory Table</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* 9.3 CORRELATION BREAKDOWN (Sub-BUs, Products, Functions, Managers, Networks, Datacenters) */}
@@ -221,11 +306,26 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
                     onClick={() => onFilterInventory({ manager: m.name })}
                     className="p-2 rounded bg-white/[0.03] border border-white/5 hover:border-amber-400/40 cursor-pointer transition-colors text-xs"
                   >
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2">
                       <span className="font-semibold text-white">{m.name}</span>
-                      <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded">
-                        {m.server_count} svr
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded">
+                          {m.server_count} svr
+                        </span>
+                        <button
+                          type="button"
+                          onClick={event => {
+                            event.stopPropagation();
+                            handleContactManager(m);
+                          }}
+                          disabled={!m.email}
+                          title={m.email ? `Contact ${m.name}` : 'No email address on record'}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-200 border border-amber-500/30 hover:bg-amber-500/25 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-mono cursor-pointer"
+                        >
+                          <Mail className="w-3 h-3" />
+                          Contact
+                        </button>
+                      </div>
                     </div>
                     {m.email && <div className="text-[11px] text-slate-400 font-mono truncate">{m.email}</div>}
                   </div>
@@ -312,23 +412,53 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
 
           {/* All Servers in this BU */}
           <div className="rounded-xl soc-glass-panel overflow-hidden border border-white/10 space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-semibold text-slate-200 uppercase tracking-wider">
-                Servers Allocated to {selectedBuDetail?.name} ({selectedBuDetail?.servers?.length || 0})
-              </h3>
-              <input
-                type="text"
-                value={detailFilter}
-                onChange={e => setDetailFilter(e.target.value)}
-                placeholder="Search within this BU..."
-                className="px-2.5 py-1 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none"
-              />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-mono font-semibold text-slate-200 uppercase tracking-wider">
+                  Servers Allocated to {selectedBuDetail?.name} ({selectedBuDetail?.servers?.length || 0})
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Select hosts to include only those in the manager email scope. With none selected, the manager's full server scope is used.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedServerIds.size > 0 && (
+                  <>
+                    <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
+                      {selectedServerIds.size} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedServerIds(new Set())}
+                      className="text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </>
+                )}
+                <input
+                  type="text"
+                  value={detailFilter}
+                  onChange={e => setDetailFilter(e.target.value)}
+                  placeholder="Search within this BU..."
+                  className="px-2.5 py-1 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.02] text-[10px] font-mono text-slate-400 uppercase">
+                    <th className="p-2.5 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected}
+                        onChange={toggleAllFiltered}
+                        aria-label="Select all visible servers"
+                        className="rounded border-white/20 bg-white/5"
+                      />
+                    </th>
                     <th className="p-2.5">Host</th>
                     <th className="p-2.5">VM</th>
                     <th className="p-2.5">Manager</th>
@@ -341,54 +471,52 @@ export const BusinessUnitsView: React.FC<BusinessUnitsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 font-mono text-[11px]">
-                  {selectedBuDetail?.servers
-                    ?.filter((s: ServerRecord) => {
-                      if (!detailFilter) return true;
-                      const q = detailFilter.toLowerCase();
-                      return (
-                        s.host.toLowerCase().includes(q) ||
-                        s.vm.toLowerCase().includes(q) ||
-                        s.manager.toLowerCase().includes(q) ||
-                        s.primary_ip_address.toLowerCase().includes(q) ||
-                        s.product.toLowerCase().includes(q) ||
-                        s.function.toLowerCase().includes(q)
-                      );
-                    })
-                    .map((server: ServerRecord) => (
-                      <tr
-                        key={server.id}
-                        onClick={() => onSelectServer(server.id)}
-                        className="hover:bg-white/[0.04] transition-colors cursor-pointer"
-                      >
-                        <td className="p-2.5 text-white font-medium">{server.host}</td>
-                        <td className="p-2.5 text-slate-300">{server.vm}</td>
-                        <td className="p-2.5 text-amber-300 font-sans">{server.manager}</td>
-                        <td className="p-2.5 text-cyan-300">{server.primary_ip_address}</td>
-                        <td className="p-2.5 text-slate-400">{server.datacenter}</td>
-                        <td className="p-2.5 text-slate-300 font-sans">{server.product}</td>
-                        <td className="p-2.5 text-slate-300 font-sans">{server.function}</td>
-                        <td className="p-2.5">
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] ${
-                              server.power_state === 'poweredOn'
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : 'bg-rose-500/15 text-rose-400'
-                            }`}
-                          >
-                            {server.power_state}
-                          </span>
-                        </td>
-                        <td className="p-2.5">
-                          {server.efi_secure_boot === true ? (
-                            <span className="text-emerald-400">TRUE</span>
-                          ) : server.efi_secure_boot === false ? (
-                            <span className="text-rose-400">FALSE</span>
-                          ) : (
-                            <span className="text-slate-500">UNK</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                  {filteredDetailServers.map((server: ServerRecord) => (
+                    <tr
+                      key={server.id}
+                      onClick={() => onSelectServer(server.id)}
+                      className={`hover:bg-white/[0.04] transition-colors cursor-pointer ${
+                        selectedServerIds.has(server.id) ? 'bg-amber-500/[0.04]' : ''
+                      }`}
+                    >
+                      <td className="p-2.5" onClick={event => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedServerIds.has(server.id)}
+                          onChange={() => toggleServer(server.id)}
+                          aria-label={`Select ${server.host}`}
+                          className="rounded border-white/20 bg-white/5"
+                        />
+                      </td>
+                      <td className="p-2.5 text-white font-medium">{server.host}</td>
+                      <td className="p-2.5 text-slate-300">{server.vm}</td>
+                      <td className="p-2.5 text-amber-300 font-sans">{server.manager}</td>
+                      <td className="p-2.5 text-cyan-300">{server.primary_ip_address}</td>
+                      <td className="p-2.5 text-slate-400">{server.datacenter}</td>
+                      <td className="p-2.5 text-slate-300 font-sans">{server.product}</td>
+                      <td className="p-2.5 text-slate-300 font-sans">{server.function}</td>
+                      <td className="p-2.5">
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[10px] ${
+                            server.power_state === 'poweredOn'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-rose-500/15 text-rose-400'
+                          }`}
+                        >
+                          {server.power_state}
+                        </span>
+                      </td>
+                      <td className="p-2.5">
+                        {server.efi_secure_boot === true ? (
+                          <span className="text-emerald-400">TRUE</span>
+                        ) : server.efi_secure_boot === false ? (
+                          <span className="text-rose-400">FALSE</span>
+                        ) : (
+                          <span className="text-slate-500">UNK</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -41,6 +41,7 @@ function AppShell() {
   // Cross-view state transfer
   const [inventoryFilters, setInventoryFilters] = useState<Record<string, string>>({});
   const [targetedServerIds, setTargetedServerIds] = useState<string[]>([]);
+  const [targetedContactId, setTargetedContactId] = useState<string | undefined>();
 
   // Telemetry & metrics state
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -116,9 +117,10 @@ function AppShell() {
     setCurrentView('incident-triage');
   };
 
-  // Launch Communications with Server IDs
-  const handleOpenCommunicationsWithServers = (serverIds: string[]) => {
+  // Launch Communications with Server IDs and an optional preselected contact
+  const handleOpenCommunicationsWithServers = (serverIds: string[], contactId?: string) => {
     setTargetedServerIds(serverIds);
+    setTargetedContactId(contactId);
     setCurrentView('communications');
   };
 
@@ -209,6 +211,7 @@ function AppShell() {
             <BusinessUnitsView
               onSelectServer={handleSelectServer}
               onFilterInventory={filters => handleNavigate('inventory', filters)}
+              onOpenCommunicationsWithServers={handleOpenCommunicationsWithServers}
             />
           )}
 
@@ -256,6 +259,7 @@ function AppShell() {
           {currentView === 'communications' && (
             <CommunicationsView
               initialServerIds={targetedServerIds}
+              initialContactId={targetedContactId}
             />
           )}
 
