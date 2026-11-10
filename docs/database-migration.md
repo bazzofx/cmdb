@@ -70,7 +70,7 @@ The data-access layer reconstructs the existing shapes on read — `affected_ser
 
 The canonical DDL lives in [`db/auth.sql`](../db/auth.sql) (users + sessions) and [`db/app.sql`](../db/app.sql) (everything else). Highlights:
 
-- `servers` has the full `ServerRecord` field set plus expression indexes on `lower(host)`, `lower(vm)`, and the commonly filtered columns (`business_unit`, `manager`, `primary_ip_address`, `datacenter`, `environment`, `product`, `support_team`, `power_state`).
+- `servers` has the full `ServerRecord` field set plus expression indexes on `lower(host)`, `lower(vm)`, and the commonly filtered columns (`business_unit`, `manager`, `primary_ip_address`, `datacenter`, `environment`, `product`, `support_team`, `power_state`). The newer CSM columns `support_team_lookup_csm`, `team`, `service`, `initials`, `total_servers_to_patch`, `engineer_notes`, `status`, `swg_check` and `source` are added to existing databases by `Store.ensureServerColumns()` at startup.
 - `UNIQUE(lower(host), lower(vm))` preserves the current `host::vm` composite-key matching.
 - `incident_hosts(incident_id, server_id, ...)` with a composite primary key; same for `campaign_targets(campaign_id, server_id, ...)`.
 - `audit_logs` is append-only with indexes on `timestamp`, `entity_type`, `entity_id`, and `action`.

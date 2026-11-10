@@ -87,7 +87,10 @@ Key relationships are **name-based, not ID-based**, except where the app stores 
 | `business_unit` / `sub_business_unit` | Ownership and reporting hierarchy |
 | `product` / `function` / `environment` | Workload classification |
 | `manager` / `email` | Named owner and the address used for communications |
-| `support_team` | Operational coverage |
+| `support_team` / `support_team_lookup_csm` | Operational coverage and CSM lookup name |
+| `team` / `service` / `initials` | Supporting ownership and patch-planning metadata |
+| `total_servers_to_patch` | Numeric patch-planning count; `null` when unknown |
+| `engineer_notes` / `status` / `swg_check` / `source` | Patching-mapper notes, SWG/XDR status check and source label |
 | `datacenter` / `network_1..3` | Physical and network placement |
 | `power_state` | `poweredOn`, `poweredOff`, `suspended` |
 | `efi_secure_boot` | `true`, `false` or `null` (not reported) |
@@ -140,7 +143,7 @@ Authentication routes are outside `/api`:
 | Current user | `GET /api/me`, `POST /api/me/password` |
 | Users | `GET /api/users`, `POST /api/users`, `PATCH /api/users/:id`, `POST /api/users/:id/reset-password` |
 | Metrics | `GET /stats` |
-| Servers | `GET /servers` (filters: `business_unit`, `sub_business_unit`, `customer`, `manager`, `support_team`, `environment`, `power_state`, `datacenter`, `product`, `function`, `secure_boot`, `network`, `host`, `vm`, `primary_ip_address`, `email`, `dns_name`, `q`, `sort_by`, `sort_order`, `page`, `limit`), `GET /servers/search?q=`, `GET /servers/:id`, `POST /servers`, `PUT /servers/:id`, `DELETE /servers/:id` |
+| Servers | `GET /servers` (filters: `business_unit`, `sub_business_unit`, `customer`, `manager`, `support_team`, `support_team_lookup_csm`, `team`, `service`, `initials`, `total_servers_to_patch`, `engineer_notes`, `status`, `swg_check`, `source`, `environment`, `power_state`, `datacenter`, `product`, `function`, `secure_boot`, `network`, `host`, `vm`, `primary_ip_address`, `email`, `dns_name`, `q`, `sort_by`, `sort_order`, `page`, `limit`), `GET /servers/search?q=`, `GET /servers/:id`, `POST /servers`, `PUT /servers/:id`, `DELETE /servers/:id` |
 | Business units | `GET /business-units`, `GET /business-units/:name` |
 | Products | `GET /products` |
 | Managers | `GET /managers`, `GET /managers/:name/servers` |

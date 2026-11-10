@@ -95,9 +95,37 @@ export class Store {
 
   init(): void {
     this.auth.prepare(`UPDATE users SET role = 'manager' WHERE role = 'steward'`).run();
+    this.ensureServerColumns();
     this.migrateFromJsonIfEmpty();
     this.ensureBootstrapAdmin();
     this.pruneSessions();
+  }
+
+  /**
+   * Adds columns introduced after the first SQLite release without rebuilding
+   * the servers table. `CREATE TABLE IF NOT EXISTS` in app.sql only covers
+   * fresh databases.
+   */
+  private ensureServerColumns(): void {
+    const existing = new Set(
+      (this.app.prepare(`PRAGMA table_info(servers)`).all() as Row[]).map(row => String(row.name)),
+    );
+    const additions: Array<[string, string]> = [
+      ['support_team_lookup_csm', "TEXT NOT NULL DEFAULT ''"],
+      ['team', "TEXT NOT NULL DEFAULT ''"],
+      ['service', "TEXT NOT NULL DEFAULT ''"],
+      ['initials', "TEXT NOT NULL DEFAULT ''"],
+      ['total_servers_to_patch', 'INTEGER'],
+      ['engineer_notes', "TEXT NOT NULL DEFAULT ''"],
+      ['status', "TEXT NOT NULL DEFAULT ''"],
+      ['swg_check', "TEXT NOT NULL DEFAULT ''"],
+      ['source', "TEXT NOT NULL DEFAULT ''"],
+    ];
+    for (const [name, definition] of additions) {
+      if (!existing.has(name)) {
+        this.app.exec(`ALTER TABLE servers ADD COLUMN ${name} ${definition}`);
+      }
+    }
   }
 
   /** Compatibility shim: SQLite commits per statement, so there is no full save. */
@@ -199,7 +227,14 @@ export class Store {
   // -------------------------------------------------------------------------
 
   private serverFromRow(r: Row): Row {
-    return { ...r, efi_secure_boot: toBool(r.efi_secure_boot), is_missing_from_source: r.is_missing_from_source === 1 };
+    return {
+      ...r,
+      efi_secure_boot: toBool(r.efi_secure_boot),
+      total_servers_to_patch: r.total_servers_to_patch === null || r.total_servers_to_patch === undefined
+        ? null
+        : Number(r.total_servers_to_patch),
+      is_missing_from_source: r.is_missing_from_source === 1,
+    };
   }
 
   allServers(): Row[] {
@@ -220,16 +255,18 @@ export class Store {
   insertServer(s: Row): void {
     this.app.prepare(
       `INSERT INTO servers
-        (id, host, vm, support_team, environment, manager, email, customer, power_state,
+        (id, host, vm, support_team, support_team_lookup_csm, team, service, initials, total_servers_to_patch,
+         engineer_notes, status, swg_check, source, environment, manager, email, customer, power_state,
          dns_name, primary_ip_address, efi_secure_boot, annotation,
          business_unit, business_unit_id, sub_business_unit, sub_business_unit_id,
          product, product_id, function, business_environment,
          organisation_short_code, organisation_abbreviated,
          datacenter, datacenter_id, network_1, network_2, network_3,
          imported_at, updated_at, source_record_hash, is_missing_from_source)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
-      s.id, s.host, s.vm, s.support_team, s.environment, s.manager, s.email, s.customer,
+      s.id, s.host, s.vm, s.support_team, s.support_team_lookup_csm ?? '', s.team ?? '', s.service ?? '', s.initials ?? '', s.total_servers_to_patch ?? null,
+      s.engineer_notes ?? '', s.status ?? '', s.swg_check ?? '', s.source ?? '', s.environment, s.manager, s.email, s.customer,
       s.power_state, s.dns_name, s.primary_ip_address, toInt(s.efi_secure_boot), s.annotation,
       s.business_unit, s.business_unit_id ?? null, s.sub_business_unit, s.sub_business_unit_id ?? null,
       s.product, s.product_id ?? null, s.function, s.business_environment,
@@ -242,7 +279,8 @@ export class Store {
   updateServer(id: string, s: Row): void {
     this.app.prepare(
       `UPDATE servers SET
-         host = ?, vm = ?, support_team = ?, environment = ?, manager = ?, email = ?, customer = ?,
+         host = ?, vm = ?, support_team = ?, support_team_lookup_csm = ?, team = ?, service = ?, initials = ?, total_servers_to_patch = ?,
+         engineer_notes = ?, status = ?, swg_check = ?, source = ?, environment = ?, manager = ?, email = ?, customer = ?,
          power_state = ?, dns_name = ?, primary_ip_address = ?, efi_secure_boot = ?, annotation = ?,
          business_unit = ?, business_unit_id = ?, sub_business_unit = ?, sub_business_unit_id = ?,
          product = ?, product_id = ?, function = ?, business_environment = ?,
@@ -251,7 +289,8 @@ export class Store {
          imported_at = ?, updated_at = ?, source_record_hash = ?, is_missing_from_source = ?
        WHERE id = ?`
     ).run(
-      s.host, s.vm, s.support_team, s.environment, s.manager, s.email, s.customer,
+      s.host, s.vm, s.support_team, s.support_team_lookup_csm ?? '', s.team ?? '', s.service ?? '', s.initials ?? '', s.total_servers_to_patch ?? null,
+      s.engineer_notes ?? '', s.status ?? '', s.swg_check ?? '', s.source ?? '', s.environment, s.manager, s.email, s.customer,
       s.power_state, s.dns_name, s.primary_ip_address, toInt(s.efi_secure_boot), s.annotation,
       s.business_unit, s.business_unit_id ?? null, s.sub_business_unit, s.sub_business_unit_id ?? null,
       s.product, s.product_id ?? null, s.function, s.business_environment,

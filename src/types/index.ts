@@ -16,6 +16,15 @@ export interface ServerRecord {
   host: string;
   vm: string;
   support_team: string;
+  support_team_lookup_csm?: string;
+  team?: string;
+  service?: string;
+  initials?: string;
+  total_servers_to_patch?: number | null;
+  engineer_notes?: string;
+  status?: string;
+  swg_check?: string;
+  source?: string;
   environment: string;
   manager: string;
   email: string;

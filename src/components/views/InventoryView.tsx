@@ -31,6 +31,15 @@ const COLUMN_LABELS: Record<string, string> = {
     product: 'Product',
     function: 'Function',
     support_team: 'Support Team',
+    support_team_lookup_csm: 'Support Team Lookup',
+    team: 'Team',
+    service: 'Service',
+    initials: 'Initials',
+    total_servers_to_patch: 'Total Servers to Patch',
+    engineer_notes: 'Engineer Notes',
+    status: 'Status',
+    swg_check: 'SWG Check',
+    source: 'Source',
     manager: 'Manager',
     email: 'Email',
     primary_ip_address: 'Primary IP',
@@ -120,6 +129,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     product: true,
     function: true,
     support_team: true,
+    support_team_lookup_csm: false,
+    team: false,
+    service: false,
+    initials: false,
+    total_servers_to_patch: false,
+    engineer_notes: false,
+    status: false,
+    swg_check: false,
+    source: false,
     manager: true,
     email: true,
     primary_ip_address: true,
@@ -302,6 +320,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       'Product',
       'Function',
       'Support Team',
+      'Support Team Lookup',
+      'Team',
+      'Service',
+      'Initials',
+      'Total Servers to Patch',
+      'Engineer Notes',
+      'Status',
+      'SWG Check',
+      'Source',
       'Manager',
       'Email',
       'Primary IP',
@@ -321,6 +348,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       s.product || '',
       s.function || '',
       s.support_team || '',
+      s.support_team_lookup_csm || '',
+      s.team || '',
+      s.service || '',
+      s.initials || '',
+      s.total_servers_to_patch ?? '',
+      s.engineer_notes || '',
+      s.status || '',
+      s.swg_check || '',
+      s.source || '',
       s.manager || '',
       s.email || '',
       s.primary_ip_address || '',
@@ -335,6 +371,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   };
 
   const activeFilterKeys = Object.keys(filters);
+  const visibleColumnCount = 1 + Object.values(visibleColumns).filter(Boolean).length;
 
   // Interactive Column Header Component with integrated Sorting & Filtering
   const renderColumnHeader = (colKey: string, label: string, customFilterKey?: string) => {
@@ -752,6 +789,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 {visibleColumns.product && renderColumnHeader('product', 'Product')}
                 {visibleColumns.function && renderColumnHeader('function', 'Function')}
                 {visibleColumns.support_team && renderColumnHeader('support_team', 'Support Team')}
+                {visibleColumns.support_team_lookup_csm && renderColumnHeader('support_team_lookup_csm', 'Support Team Lookup')}
+                {visibleColumns.team && renderColumnHeader('team', 'Team')}
+                {visibleColumns.service && renderColumnHeader('service', 'Service')}
+                {visibleColumns.initials && renderColumnHeader('initials', 'Initials')}
+                {visibleColumns.total_servers_to_patch && renderColumnHeader('total_servers_to_patch', 'Total Servers to Patch')}
+                {visibleColumns.engineer_notes && renderColumnHeader('engineer_notes', 'Engineer Notes')}
+                {visibleColumns.status && renderColumnHeader('status', 'Status')}
+                {visibleColumns.swg_check && renderColumnHeader('swg_check', 'SWG Check')}
+                {visibleColumns.source && renderColumnHeader('source', 'Source')}
                 {visibleColumns.manager && renderColumnHeader('manager', 'Manager')}
                 {visibleColumns.email && renderColumnHeader('email', 'Email')}
                 {visibleColumns.primary_ip_address && renderColumnHeader('primary_ip_address', 'Primary IP')}
@@ -766,13 +812,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <tbody className="divide-y divide-white/5">
               {loading ? (
                 <tr>
-                  <td colSpan={18} className="p-8 text-center text-xs font-mono text-slate-400">
+                  <td colSpan={visibleColumnCount} className="p-8 text-center text-xs font-mono text-slate-400">
                     Loading server infrastructure inventory...
                   </td>
                 </tr>
               ) : servers.length === 0 ? (
                 <tr>
-                  <td colSpan={18} className="p-8 text-center text-slate-400">
+                  <td colSpan={visibleColumnCount} className="p-8 text-center text-slate-400">
                     No servers match the selected criteria.
                   </td>
                 </tr>
@@ -852,6 +898,48 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <td className="p-3 text-slate-300 font-mono text-[11px]">
                           {server.support_team || '—'}
                         </td>
+                      )}
+
+                      {visibleColumns.support_team_lookup_csm && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">
+                          {server.support_team_lookup_csm || '—'}
+                        </td>
+                      )}
+
+                      {visibleColumns.team && (
+                        <td className="p-3 text-slate-300">{server.team || '—'}</td>
+                      )}
+
+                      {visibleColumns.service && (
+                        <td className="p-3 text-slate-300">{server.service || '—'}</td>
+                      )}
+
+                      {visibleColumns.initials && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">{server.initials || '—'}</td>
+                      )}
+
+                      {visibleColumns.total_servers_to_patch && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">
+                          {server.total_servers_to_patch ?? '—'}
+                        </td>
+                      )}
+
+                      {visibleColumns.engineer_notes && (
+                        <td className="p-3 text-slate-300 text-[11px] max-w-[220px] truncate" title={server.engineer_notes || ''}>
+                          {server.engineer_notes || '—'}
+                        </td>
+                      )}
+
+                      {visibleColumns.status && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">{server.status || '—'}</td>
+                      )}
+
+                      {visibleColumns.swg_check && (
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">{server.swg_check || '—'}</td>
+                      )}
+
+                      {visibleColumns.source && (
+                        <td className="p-3 text-slate-300 text-[11px]">{server.source || '—'}</td>
                       )}
 
                       {/* 9. Manager */}

@@ -40,7 +40,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 
 **Bulk action bar.** Appears when at least one row is ticked: a pulsing dot, "N servers selected", then "Copy Hosts", "Copy IPs", "Incident Impact" (rose), "Contact List" (purple) and "Deselect". Copy buttons swap their icon for a green tick for two seconds.
 
-**The table.** A header checkbox selects or clears the current page, then one header per visible column: VM Identifier, Env, Business Unit, Sub-BU, Customer, Product, Function, Support Team, Manager, Email, Primary IP, Datacenter, Host, Power State, Secure Boot, DNS Name, Annotation. Twelve are visible by default; Host, Power State, Secure Boot, DNS Name and Annotation start hidden.
+**The table.** A header checkbox selects or clears the current page, then one header per visible column: VM Identifier, Env, Business Unit, Sub-BU, Customer, Product, Function, Support Team, Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source, Manager, Email, Primary IP, Datacenter, Host, Power State, Secure Boot, DNS Name, Annotation. Twelve are visible by default; the nine new columns (Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source) plus Host, Power State, Secure Boot, DNS Name and Annotation start hidden and can be enabled through **Columns**.
 
 **Column header dropdown.** Each header is a button that opens a popover titled "<Label> Controls" with a close `✕`, a "Sort Order" pair (Asc/Desc), and "Filter by <Label>". If the column has more than five distinct values a small "Search <label>..." box appears. The option list starts with "(Show All)" carrying the current filtered total, then up to all distinct values with their counts, sorted by count descending then label. Picking a value closes the popover, applies the filter immediately and resets to page 1. Escape or a click outside also closes it.
 
@@ -60,6 +60,15 @@ Every filter is server-side and every filter is shareable across views: other pa
 | Product | `product` | Blue text |
 | Function | `function` | — when empty |
 | Support Team | `support_team` | Monospace |
+| Support Team Lookup | `support_team_lookup_csm` | Hidden by default; monospace |
+| Team | `team` | Hidden by default |
+| Service | `service` | Hidden by default |
+| Initials | `initials` | Hidden by default; monospace |
+| Total Servers to Patch | `total_servers_to_patch` | Hidden by default; numeric, blank when unknown |
+| Engineer Notes | `engineer_notes` | Hidden by default; truncated with full text in the title |
+| Status | `status` | Hidden by default; monospace |
+| SWG Check | `swg_check` | Hidden by default; monospace |
+| Source | `source` | Hidden by default |
 | Manager | `manager` | Amber "Unassigned" when empty |
 | Email | `email` | Amber "Missing" when empty |
 | Primary IP | `primary_ip_address` | Cyan monospace |
@@ -71,7 +80,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 | Annotation | `annotation` | Hidden by default; no matching API filter |
 | Showing X of Y | `items.length` and `total` | From the paged response |
 | Column option counts | `allServers` from `GET /api/servers?limit=1000` | Counts are of the first 1,000 records, not of the filtered set |
-| CSV columns | 16 fixed fields | VM, Env, BU, Sub-BU, Customer, Product, Function, Support Team, Manager, Email, IP, Datacenter, Host, Power State, Secure Boot, DNS |
+| CSV columns | 25 fixed fields | VM, Env, BU, Sub-BU, Customer, Product, Function, Support Team, Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source, Manager, Email, IP, Datacenter, Host, Power State, Secure Boot, DNS |
 
 ## 5. Common workflows
 
@@ -130,7 +139,7 @@ Four effects: (1) on mount, `api.getServers({ limit: 1000 })` fills `allServers`
 
 **API calls with query parameters and response shape.**
 
-`GET /api/servers` with the filter dictionary spread in, plus `q`, `sort_by`, `sort_order`, `page`, `limit`. Empty strings and `undefined` are dropped by `api.getServers`. Supported keys: `business_unit`, `sub_business_unit`, `customer`, `manager`, `support_team`, `environment`, `power_state`, `datacenter`, `product`, `function`, `secure_boot`, `network`, `host`, `vm`, `primary_ip_address`, `email`, `dns_name`, `q`, `sort_by`, `sort_order`, `page`, `limit`. The attribute filters accept comma-separated lists and match case-insensitively after `cleanString`; `secure_boot` is an enum (`TRUE`/`FALSE`/`UNKNOWN`), `network` is a substring match over `network_1`–`network_3`, and `host` must match exactly. Response: `{ items: ServerRecord[], total, page, limit, total_pages }`.
+`GET /api/servers` with the filter dictionary spread in, plus `q`, `sort_by`, `sort_order`, `page`, `limit`. Empty strings and `undefined` are dropped by `api.getServers`. Supported keys: `business_unit`, `sub_business_unit`, `customer`, `manager`, `support_team`, `support_team_lookup_csm`, `team`, `service`, `initials`, `total_servers_to_patch`, `engineer_notes`, `status`, `swg_check`, `source`, `environment`, `power_state`, `datacenter`, `product`, `function`, `secure_boot`, `network`, `host`, `vm`, `primary_ip_address`, `email`, `dns_name`, `q`, `sort_by`, `sort_order`, `page`, `limit`. The attribute filters accept comma-separated lists and match case-insensitively after `cleanString`; `secure_boot` is an enum (`TRUE`/`FALSE`/`UNKNOWN`), `network` is a substring match over `network_1`–`network_3`, and `host` must match exactly. Response: `{ items: ServerRecord[], total, page, limit, total_pages }`.
 
 **Cross-view navigation it performs.** It does not call `onNavigate` itself; it raises callbacks that `App` converts into view changes:
 

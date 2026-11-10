@@ -149,6 +149,14 @@ const SERVER_SEARCH_FIELDS: Array<(server: ServerRecord) => string | undefined> 
 const SERVER_GLOBAL_SEARCH_FIELDS = [
   ...SERVER_SEARCH_FIELDS,
   (server: ServerRecord) => server.support_team,
+  (server: ServerRecord) => server.support_team_lookup_csm,
+  (server: ServerRecord) => server.team,
+  (server: ServerRecord) => server.service,
+  (server: ServerRecord) => server.initials,
+  (server: ServerRecord) => server.engineer_notes,
+  (server: ServerRecord) => server.status,
+  (server: ServerRecord) => server.swg_check,
+  (server: ServerRecord) => server.source,
   (server: ServerRecord) => server.organisation_abbreviated,
 ];
 
@@ -164,6 +172,21 @@ export function sanitizeServerRecord(record: Partial<ServerRecord>): ServerRecor
     host: cleanString(record.host),
     vm: cleanString(record.vm),
     support_team: cleanString(record.support_team),
+    support_team_lookup_csm: cleanString(record.support_team_lookup_csm),
+    team: cleanString(record.team),
+    service: cleanString(record.service),
+    initials: cleanString(record.initials),
+    total_servers_to_patch: (() => {
+      const raw = record.total_servers_to_patch;
+      if (raw === null || raw === undefined) return null;
+      if (String(raw).trim() === '') return null;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : null;
+    })(),
+    engineer_notes: cleanString(record.engineer_notes),
+    status: cleanString(record.status),
+    swg_check: cleanString(record.swg_check),
+    source: cleanString(record.source),
     environment: cleanString(record.environment),
     manager: cleanString(record.manager),
     email: cleanString(record.email).toLowerCase(),
@@ -392,6 +415,20 @@ export function parseCsvToServers(csvText: string): ServerRecord[] {
       host,
       vm,
       support_team: getCol(cols, 'Support Team'),
+      support_team_lookup_csm: getCol(cols, 'Support Team LookUP CSM') || getCol(cols, 'Support Team Lookup CSM'),
+      team: getCol(cols, 'Team'),
+      service: getCol(cols, 'Service'),
+      initials: getCol(cols, 'Initials'),
+      total_servers_to_patch: (() => {
+        const raw = getCol(cols, 'Total Servers to Patch') || getCol(cols, 'Total Servers To Patch');
+        if (!raw) return null;
+        const value = Number(raw);
+        return Number.isFinite(value) ? value : null;
+      })(),
+      engineer_notes: getCol(cols, 'Engineer Notes'),
+      status: getCol(cols, 'Status'),
+      swg_check: getCol(cols, 'SWG Check'),
+      source: getCol(cols, 'Source'),
       environment: getCol(cols, 'Environment'),
       manager: getCol(cols, 'Manager'),
       email,
@@ -949,6 +986,15 @@ async function startServer() {
       customer,
       manager,
       support_team,
+      support_team_lookup_csm,
+      team,
+      service,
+      initials,
+      total_servers_to_patch,
+      engineer_notes,
+      status,
+      swg_check,
+      source,
       environment,
       power_state,
       datacenter,
@@ -997,6 +1043,44 @@ async function startServer() {
     if (support_team) {
       const wanted = parseFilterList(support_team);
       list = list.filter(s => matchesAnyFilter(wanted, [s.support_team]));
+    }
+    if (support_team_lookup_csm) {
+      const wanted = parseFilterList(support_team_lookup_csm);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.support_team_lookup_csm]));
+    }
+    if (team) {
+      const wanted = parseFilterList(team);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.team]));
+    }
+    if (service) {
+      const wanted = parseFilterList(service);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.service]));
+    }
+    if (initials) {
+      const wanted = parseFilterList(initials);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.initials]));
+    }
+    if (total_servers_to_patch) {
+      const wanted = parseFilterList(total_servers_to_patch);
+      list = list.filter(s =>
+        matchesAnyFilter(wanted, [s.total_servers_to_patch === null || s.total_servers_to_patch === undefined ? '' : String(s.total_servers_to_patch)]),
+      );
+    }
+    if (engineer_notes) {
+      const wanted = parseFilterList(engineer_notes);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.engineer_notes]));
+    }
+    if (status) {
+      const wanted = parseFilterList(status);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.status]));
+    }
+    if (swg_check) {
+      const wanted = parseFilterList(swg_check);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.swg_check]));
+    }
+    if (source) {
+      const wanted = parseFilterList(source);
+      list = list.filter(s => matchesAnyFilter(wanted, [s.source]));
     }
     if (environment) {
       const wanted = parseFilterList(environment);
@@ -2163,6 +2247,15 @@ async function startServer() {
       const lower = h.toLowerCase();
       if (lower === 'host') suggestedMapping[h] = 'host';
       else if (lower === 'vm') suggestedMapping[h] = 'vm';
+      else if (lower.includes('lookup')) suggestedMapping[h] = 'support_team_lookup_csm';
+      else if (lower === 'team') suggestedMapping[h] = 'team';
+      else if (lower === 'service') suggestedMapping[h] = 'service';
+      else if (lower === 'initials') suggestedMapping[h] = 'initials';
+      else if (lower.includes('total servers') || lower.includes('servers to patch')) suggestedMapping[h] = 'total_servers_to_patch';
+      else if (lower.includes('engineer') && lower.includes('note')) suggestedMapping[h] = 'engineer_notes';
+      else if (lower === 'status') suggestedMapping[h] = 'status';
+      else if (lower.includes('swg')) suggestedMapping[h] = 'swg_check';
+      else if (lower === 'source') suggestedMapping[h] = 'source';
       else if (lower.includes('support')) suggestedMapping[h] = 'support_team';
       else if (lower === 'environment') suggestedMapping[h] = 'environment';
       else if (lower === 'manager') suggestedMapping[h] = 'manager';
