@@ -308,6 +308,7 @@ export interface DashboardMetrics {
   servers_by_environment: { name: string; count: number }[];
   servers_by_datacenter: { name: string; count: number }[];
   servers_by_support_team: { name: string; count: number }[];
+  servers_by_swg_check?: { name: string; count: number }[];
   servers_by_power_state: { name: string; count: number }[];
   secure_boot_status: { name: string; count: number }[];
   ownership_completeness: {

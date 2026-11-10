@@ -9,6 +9,9 @@ import {
   ChevronDown,
   ShieldCheck,
   ShieldAlert,
+  CheckCircle2,
+  XCircle,
+  Clock,
   SlidersHorizontal,
   Mail,
   ShieldAlert as IncidentIcon,
@@ -136,12 +139,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     total_servers_to_patch: false,
     engineer_notes: false,
     status: false,
-    swg_check: false,
+    swg_check: true,
     source: false,
     manager: true,
     email: true,
     primary_ip_address: true,
-    datacenter: true,
+    datacenter: false,
     host: false,
     power_state: false,
     efi_secure_boot: false,
@@ -935,7 +938,25 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       )}
 
                       {visibleColumns.swg_check && (
-                        <td className="p-3 text-slate-300 font-mono text-[11px]">{server.swg_check || '—'}</td>
+                        <td className="p-3">
+                          {['GOOD', 'PASS'].includes(server.swg_check?.toUpperCase() ?? '') ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              <CheckCircle2 className="w-3 h-3" /> {server.swg_check}
+                            </span>
+                          ) : server.swg_check?.toUpperCase() === 'FAIL' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                              <XCircle className="w-3 h-3" /> FAIL
+                            </span>
+                          ) : server.swg_check?.toUpperCase() === 'STALE' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-500/10 px-1.5 py-0.5 rounded border border-slate-500/20">
+                              <Clock className="w-3 h-3" /> STALE
+                            </span>
+                          ) : server.swg_check ? (
+                            <span className="text-[10px] font-mono text-slate-400">{server.swg_check}</span>
+                          ) : (
+                            <span className="text-[10px] font-mono text-slate-500">—</span>
+                          )}
+                        </td>
                       )}
 
                       {visibleColumns.source && (

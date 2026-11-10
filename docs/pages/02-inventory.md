@@ -40,7 +40,7 @@ Every filter is server-side and every filter is shareable across views: other pa
 
 **Bulk action bar.** Appears when at least one row is ticked: a pulsing dot, "N servers selected", then "Copy Hosts", "Copy IPs", "Incident Impact" (rose), "Contact List" (purple) and "Deselect". Copy buttons swap their icon for a green tick for two seconds.
 
-**The table.** A header checkbox selects or clears the current page, then one header per visible column: VM Identifier, Env, Business Unit, Sub-BU, Customer, Product, Function, Support Team, Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source, Manager, Email, Primary IP, Datacenter, Host, Power State, Secure Boot, DNS Name, Annotation. Twelve are visible by default; the nine new columns (Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source) plus Host, Power State, Secure Boot, DNS Name and Annotation start hidden and can be enabled through **Columns**.
+**The table.** A header checkbox selects or clears the current page, then one header per visible column: VM Identifier, Env, Business Unit, Sub-BU, Customer, Product, Function, Support Team, Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, SWG Check, Source, Manager, Email, Primary IP, Datacenter, Host, Power State, Secure Boot, DNS Name, Annotation. Twelve are visible by default, including **SWG Check**; Support Team Lookup, Team, Service, Initials, Total Servers to Patch, Engineer Notes, Status, Source, Datacenter, Host, Power State, Secure Boot, DNS Name and Annotation start hidden and can be enabled through **Columns**.
 
 **Column header dropdown.** Each header is a button that opens a popover titled "<Label> Controls" with a close `✕`, a "Sort Order" pair (Asc/Desc), and "Filter by <Label>". If the column has more than five distinct values a small "Search <label>..." box appears. The option list starts with "(Show All)" carrying the current filtered total, then up to all distinct values with their counts, sorted by count descending then label. Picking a value closes the popover, applies the filter immediately and resets to page 1. Escape or a click outside also closes it.
 
@@ -67,12 +67,12 @@ Every filter is server-side and every filter is shareable across views: other pa
 | Total Servers to Patch | `total_servers_to_patch` | Hidden by default; numeric, blank when unknown |
 | Engineer Notes | `engineer_notes` | Hidden by default; truncated with full text in the title |
 | Status | `status` | Hidden by default; monospace |
-| SWG Check | `swg_check` | Hidden by default; monospace |
+| SWG Check | `swg_check` | Visible by default; GOOD/PASS green with a check icon, FAIL red with an X icon, STALE grey with a clock icon, other values neutral |
 | Source | `source` | Hidden by default |
 | Manager | `manager` | Amber "Unassigned" when empty |
 | Email | `email` | Amber "Missing" when empty |
 | Primary IP | `primary_ip_address` | Cyan monospace |
-| Datacenter | `datacenter` | — when empty |
+| Datacenter | `datacenter` | Hidden by default; — when empty |
 | Host | `host` | Hidden by default |
 | Power State | `power_state` | `poweredOn` green, anything else rose |
 | Secure Boot | `efi_secure_boot` | `true`→TRUE, `false`→FALSE, `null`→UNKNOWN; filter key is `secure_boot` |

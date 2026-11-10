@@ -668,6 +668,47 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
 
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
 
+  // Mask an IP like the communications templates (***.***.x.x), keeping CIDR suffix.
+  const maskIpForManagerEmail = (ip: string | undefined | null): string => {
+    const raw = (ip || '').trim();
+    if (!raw) return 'N/A';
+    const slashIndex = raw.indexOf('/');
+    const address = slashIndex === -1 ? raw : raw.slice(0, slashIndex);
+    const suffix = slashIndex === -1 ? '' : raw.slice(slashIndex);
+    const octets = address.split('.');
+    if (octets.length === 4 && octets.every(octet => /^\d{1,3}$/.test(octet))) {
+      return `***.***.${octets[2]}.${octets[3]}${suffix}`;
+    }
+    return raw;
+  };
+
+  // Open the user's mail client: subject = incident title, body = description
+  // + the manager's affected servers as a bulleted list with masked IPs.
+  const openManagerEmail = (manager: { name: string; email: string }) => {
+    if (!selectedIncident || !manager.email) return;
+    const servers = affectedList.filter(s => (s.manager || 'Unassigned') === manager.name);
+    const bullets = servers
+      .map(s => `  • VM: ${s.vm} | IP: ${maskIpForManagerEmail(s.primary_ip_address)}`)
+      .join('\n');
+    const subject = selectedIncident.incident_title;
+    const body = [
+      `Dear ${manager.name},`,
+      '',
+      selectedIncident.description || 'A security incident is under investigation.',
+      '',
+      'Affected Systems Under Your Remit:',
+      bullets,
+      '',
+      'Please confirm whether the systems above are vulnerable. If they can be patched, please let us know and advise when patching can be done.',
+      '',
+      'If you are not the server owner or the right contact for any of the servers above, please also let us know.',
+      '',
+      'Regards,',
+      'SWG Team',
+    ].join('\n');
+    window.location.href = `mailto:${encodeURIComponent(manager.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Incident Control & View Mode Switcher */}
@@ -1332,9 +1373,24 @@ export const IncidentTriageView: React.FC<IncidentTriageViewProps> = ({
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-white text-xs">{mgr.name}</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300">
-                            {mgr.total} server{mgr.total > 1 ? 's' : ''}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {mgr.email && (
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  openManagerEmail(mgr);
+                                }}
+                                title={`Email ${mgr.name}`}
+                                aria-label={`Email ${mgr.name}`}
+                                className="p-1 rounded bg-blue-500/15 text-blue-300 border border-blue-500/20 hover:bg-blue-500/30 hover:text-blue-200 transition-colors cursor-pointer"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300">
+                              {mgr.total} server{mgr.total > 1 ? 's' : ''}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="text-[11px] text-slate-400 font-mono truncate">

@@ -958,6 +958,7 @@ async function startServer() {
       servers_by_environment: countBy(s => s.environment).sort((a, b) => b.count - a.count),
       servers_by_datacenter: countBy(s => s.datacenter).sort((a, b) => b.count - a.count),
       servers_by_support_team: countBy(s => s.support_team).sort((a, b) => b.count - a.count),
+      servers_by_swg_check: countBy(s => s.swg_check || 'Unassigned').sort((a, b) => b.count - a.count),
       servers_by_power_state: countBy(s => s.power_state),
       secure_boot_status: [
         { name: 'Enabled', count: servers.filter(s => s.efi_secure_boot === true).length },

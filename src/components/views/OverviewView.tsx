@@ -44,6 +44,14 @@ const BU_COLORS = [
   'var(--chart-12)',
 ];
 
+const SWG_COLORS: Record<string, string> = {
+  GOOD: 'var(--chart-3)',
+  PASS: 'var(--chart-3)',
+  FAIL: 'var(--chart-5)',
+  MISSING: 'var(--chart-4)',
+  UNASSIGNED: 'var(--neutral)',
+};
+
 const polarPoint = (angle: number, radius: number) => {
   const radians = ((angle - 90) * Math.PI) / 180;
   return {
@@ -76,6 +84,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   canAccessIncidents = false,
 }) => {
   const [hoveredBusinessUnit, setHoveredBusinessUnit] = useState<number | null>(null);
+  const [hoveredSwgCheck, setHoveredSwgCheck] = useState<number | null>(null);
   const [affectedAssets, setAffectedAssets] = useState<ServerRecord[]>([]);
   const [affectedLoading, setAffectedLoading] = useState(false);
 
@@ -154,6 +163,27 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   });
   const hoveredBusinessUnitSlice =
     hoveredBusinessUnit !== null ? businessUnitSlices[hoveredBusinessUnit] : null;
+
+  const swgChecks = metrics.servers_by_swg_check ?? [];
+  const swgCheckTotal = swgChecks.reduce((sum, item) => sum + item.count, 0);
+  let swgCheckAngle = 0;
+  const swgCheckSlices = swgChecks.map((item, index) => {
+    const sweep = swgCheckTotal > 0 ? (item.count / swgCheckTotal) * 360 : 0;
+    const slice = {
+      ...item,
+      startAngle: swgCheckAngle,
+      endAngle: swgCheckAngle + sweep,
+      color: SWG_COLORS[item.name.toUpperCase()] ?? BU_COLORS[index % BU_COLORS.length],
+      percentage: swgCheckTotal > 0 ? Math.round((item.count / swgCheckTotal) * 100) : 0,
+    };
+    swgCheckAngle += sweep;
+    return slice;
+  });
+  const hoveredSwgCheckSlice =
+    hoveredSwgCheck !== null ? swgCheckSlices[hoveredSwgCheck] : null;
+
+  const axisMax = Math.max(1, totalServers);
+  const axisTicks = Array.from({ length: 5 }, (_, index) => Math.round((axisMax * index) / 4));
 
   const telemetryItems = [
     {
@@ -421,11 +451,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
               {/* Axis markers */}
               <div className="flex justify-between text-[10px] font-mono text-slate-500 border-t border-white/5 pt-2">
-                <span>0</span>
-                <span>1</span>
-                <span>2</span>
-                <span>3</span>
-                <span>4+</span>
+                {axisTicks.map((tick, index) => (
+                  <span key={`${index}-${tick}`}>{tick}</span>
+                ))}
               </div>
             </div>
 
@@ -489,11 +517,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
               {/* Axis markers */}
               <div className="flex justify-between text-[10px] font-mono text-slate-500 border-t border-white/5 pt-2">
-                <span>0</span>
-                <span>2</span>
-                <span>4</span>
-                <span>6</span>
-                <span>8+</span>
+                {axisTicks.map((tick, index) => (
+                  <span key={`${index}-${tick}`}>{tick}</span>
+                ))}
               </div>
             </div>
           </div>
@@ -824,6 +850,139 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           canFilter
                             ? `Open Inventory filtered to ${slice.name}`
                             : 'Unassigned servers cannot be filtered by business unit'
+                        }
+                        className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1 rounded text-[10px] ${
+                          canFilter ? 'hover:bg-white/[0.04] cursor-pointer' : 'cursor-default opacity-80'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                          <span className="text-slate-300 truncate">{slice.name}</span>
+                        </span>
+                        <span className="font-mono text-slate-400 shrink-0 text-[10px]">
+                          {slice.count} <span className="text-slate-600">({slice.percentage}%)</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <p className="text-[10px] text-slate-500 font-mono border-t border-white/5 pt-2 mt-auto">
+              Hover a slice for detail · click to filter Inventory
+            </p>
+          </div>
+
+          {/* SWG Check status pie chart */}
+          <div data-testid="swg-pie-card" className="p-5 rounded-2xl bg-[var(--surface-1)]/80 border border-slate-800/80 shadow-xl backdrop-blur-md space-y-3 flex flex-col">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white tracking-wide">Trend AV Status</h2>
+                  <p className="text-[10px] text-slate-500">Security working group verification</p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                {swgChecks.length} state{swgChecks.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div className="flex-1 min-h-0 flex flex-col sm:flex-row items-center justify-center gap-4 py-1">
+              <div className="relative w-36 h-36 shrink-0">
+                <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
+                  <circle cx="100" cy="100" r="63" fill="none" stroke="var(--chart-track)" strokeWidth="30" />
+
+                  {swgCheckTotal > 0 && swgCheckSlices.length === 1 && (() => {
+                    const slice = swgCheckSlices[0];
+                    const canFilter = slice.name !== 'Unassigned';
+                    return (
+                      <circle
+                        cx="100"
+                        cy="100"
+                        r="63"
+                        fill="none"
+                        stroke={slice.color}
+                        strokeWidth="30"
+                        opacity={hoveredSwgCheck === null || hoveredSwgCheck === 0 ? 1 : 0.45}
+                        onMouseEnter={() => setHoveredSwgCheck(0)}
+                        onMouseLeave={() => setHoveredSwgCheck(null)}
+                        onClick={() => canFilter && onNavigate('inventory', { swg_check: slice.name })}
+                        role={canFilter ? 'button' : 'img'}
+                        tabIndex={canFilter ? 0 : -1}
+                        aria-label={`${slice.name}: ${slice.count} servers`}
+                        style={{ cursor: canFilter ? 'pointer' : 'default' }}
+                        className="transition-opacity duration-150 outline-none"
+                      >
+                        <title>{`${slice.name}: ${slice.count} servers (${slice.percentage}%)`}</title>
+                      </circle>
+                    );
+                  })()}
+
+                  {swgCheckTotal > 0 && swgCheckSlices.length > 1 &&
+                    swgCheckSlices.map((slice, index) => {
+                      const canFilter = slice.name !== 'Unassigned';
+                      return (
+                        <path
+                          key={slice.name}
+                          d={donutSlicePath(slice.startAngle, slice.endAngle)}
+                          fill={slice.color}
+                          stroke="var(--chart-hole)"
+                          strokeWidth="1.5"
+                          opacity={hoveredSwgCheck === null || hoveredSwgCheck === index ? 1 : 0.45}
+                          onMouseEnter={() => setHoveredSwgCheck(index)}
+                          onMouseLeave={() => setHoveredSwgCheck(null)}
+                          onClick={() => canFilter && onNavigate('inventory', { swg_check: slice.name })}
+                          role={canFilter ? 'button' : 'img'}
+                          tabIndex={canFilter ? 0 : -1}
+                          aria-label={`${slice.name}: ${slice.count} servers (${slice.percentage}%)`}
+                          style={{ cursor: canFilter ? 'pointer' : 'default' }}
+                          className="transition-opacity duration-150 outline-none focus-visible:opacity-100"
+                        >
+                          <title>{`${slice.name}: ${slice.count} servers (${slice.percentage}%)`}</title>
+                        </path>
+                      );
+                    })}
+
+                  <circle cx="100" cy="100" r="47" fill="var(--chart-hole)" />
+                </svg>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
+                  <span className="text-[8px] uppercase tracking-wider text-slate-500 max-w-[92px] truncate">
+                    {hoveredSwgCheckSlice?.name ?? 'Total'}
+                  </span>
+                  <span className="text-xl font-black text-white leading-tight">
+                    {hoveredSwgCheckSlice?.count ?? swgCheckTotal}
+                  </span>
+                  <span className="text-[8px] text-slate-500">
+                    {hoveredSwgCheckSlice
+                      ? `${hoveredSwgCheckSlice.percentage}% of servers`
+                      : 'servers'}
+                  </span>
+                </div>
+              </div>
+
+              {swgChecks.length === 0 ? (
+                <p className="text-[11px] text-slate-500 text-center py-2 flex-1">No SWG check data.</p>
+              ) : (
+                <div className="flex-1 w-full min-w-0 max-h-[190px] overflow-y-auto space-y-1 pr-1">
+                  {swgCheckSlices.map((slice, index) => {
+                    const canFilter = slice.name !== 'Unassigned';
+                    return (
+                      <button
+                        key={slice.name}
+                        type="button"
+                        disabled={!canFilter}
+                        onMouseEnter={() => setHoveredSwgCheck(index)}
+                        onMouseLeave={() => setHoveredSwgCheck(null)}
+                        onClick={() => canFilter && onNavigate('inventory', { swg_check: slice.name })}
+                        title={
+                          canFilter
+                            ? `Open Inventory filtered to SWG Check ${slice.name}`
+                            : 'Unassigned SWG status cannot be filtered'
                         }
                         className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1 rounded text-[10px] ${
                           canFilter ? 'hover:bg-white/[0.04] cursor-pointer' : 'cursor-default opacity-80'
