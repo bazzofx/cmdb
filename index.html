@@ -10,14 +10,15 @@
     <script>
       (function () {
         try {
-          var allowed = ['default', 'steel', 'x3000', 'midnight', 'morning', 'coffee', 'cyber'];
-          var stored = window.localStorage.getItem('csm-theme') || 'steel';
+          var allowed = ['default', 'onyx', 'x3000', 'midnight', 'morning', 'coffee', 'cyber'];
+          var stored = window.localStorage.getItem('csm-theme') || 'cyber';
+          if (stored === 'steel') stored = 'onyx';
           document.documentElement.setAttribute(
             'data-theme',
-            allowed.indexOf(stored) === -1 ? 'steel' : stored
+            allowed.indexOf(stored) === -1 ? 'cyber' : stored
           );
         } catch (error) {
-          document.documentElement.setAttribute('data-theme', 'steel');
+          document.documentElement.setAttribute('data-theme', 'cyber');
         }
       })();
     </script>

@@ -96,48 +96,73 @@
   --scroll-thumb-hover: rgba(255, 255, 255, 0.25);
 }
 
-[data-theme="steel"] {
+[data-theme="onyx"] {
   color-scheme: dark;
-  --app-bg: #0a0f14;
-  --app-bg-solid: #0a0f14;
-  --surface-1: #101820;
-  --surface-2: #15222d;
-  --surface-3: #1b2b38;
-  --text-primary: #eaf2f8;
-  --text-secondary: #93a9ba;
-  --accent: #3e6f96;
-  --accent-2: #ff5a1f;
-  --accent-3: #7fa6c4;
-  --accent-4: #5b8fb9;
-  --accent-contrast: #ffffff;
-  --accent-2-contrast: #2a0d02;
-  --accent-glow: color-mix(in srgb, var(--accent-2) 26%, transparent);
-  --neutral: #8fa3b3;
-  --panel-bg: rgba(180, 214, 238, 0.045);
-  --panel-border: rgba(180, 214, 238, 0.11);
-  --panel-hover-bg: rgba(180, 214, 238, 0.075);
-  --panel-hover-border: rgba(255, 138, 76, 0.28);
-  --scroll-track: rgba(8, 13, 18, 0.7);
-  --scroll-thumb: rgba(143, 163, 179, 0.3);
-  --scroll-thumb-hover: rgba(255, 138, 76, 0.45);
-  --color-white: #f4f8fb;
+  --app-bg: #08090b;
+  --app-bg-solid: #08090b;
+  --surface-1: #101215;
+  --surface-2: #171a1f;
+  --surface-3: #20252b;
+  --text-primary: #f1f4f7;
+  --text-secondary: #a6afb8;
+  --accent: #8e9aa6;
+  --accent-2: #d5dce3;
+  --accent-3: #5c6670;
+  --accent-4: #b9c3cc;
+  --accent-contrast: #090b0d;
+  --accent-2-contrast: #090b0d;
+  --accent-glow: color-mix(in srgb, var(--accent-2) 24%, transparent);
+  --neutral: #7b848e;
+  --panel-bg: rgba(202, 214, 225, 0.045);
+  --panel-border: rgba(202, 214, 225, 0.12);
+  --panel-hover-bg: rgba(202, 214, 225, 0.08);
+  --panel-hover-border: rgba(220, 229, 237, 0.24);
+  --scroll-track: rgba(7, 9, 11, 0.75);
+  --scroll-thumb: rgba(174, 186, 197, 0.28);
+  --scroll-thumb-hover: rgba(222, 230, 237, 0.5);
+  --color-white: #f5f7f9;
   --color-black: #000000;
-  --chart-track: #22323f;
-  --chart-hole: #101820;
-  --art-bg-from: #101820;
-  --art-bg-via: #0a0f14;
-  --art-border: rgba(62, 111, 150, 0.2);
-  --art-far: #15222d;
-  --art-near-top: #2b3d4d;
-  --art-near-bottom: #070b0f;
-  --art-silhouette: #070b0f;
-  --art-star: rgba(255, 138, 76, 0.7);
-  --art-glow: rgba(255, 90, 31, 0.2);
-  --art-accent: rgba(255, 138, 76, 0.6);
+  --chart-1: #9aa7b4;
+  --chart-2: #6d7b88;
+  --chart-3: #c7d0d8;
+  --chart-4: #b3bcc5;
+  --chart-5: #59636d;
+  --chart-6: #dce3e8;
+  --chart-7: #7f8c99;
+  --chart-8: #aab5bf;
+  --chart-9: #4e5862;
+  --chart-10: #c0c9d1;
+  --chart-11: #737f8a;
+  --chart-12: #e4eaee;
+  --chart-track: #262b31;
+  --chart-hole: #101215;
+  --art-bg-from: #16191d;
+  --art-bg-via: #0a0c0e;
+  --art-border: rgba(190, 200, 210, 0.18);
+  --art-far: #20252b;
+  --art-near-top: #4a555f;
+  --art-near-bottom: #0a0c0e;
+  --art-silhouette: #07090a;
+  --art-star: rgba(220, 230, 238, 0.7);
+  --art-glow: rgba(180, 195, 210, 0.2);
+  --art-accent: rgba(210, 220, 230, 0.65);
 }
 
-[data-theme="x3000"] {
-  color-scheme: dark;
+[data-theme="onyx"] .app-shell {
+  background-color: transparent;
+  background-image: linear-gradient(135deg, #08090b 0%, #14181d 48%, #08090b 100%);
+}
+
+[data-theme="onyx"] .app-main {
+  background-color: transparent;
+}
+
+[data-theme="onyx"] .soc-glass-panel {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.005) 46%, rgba(0, 0, 0, 0.12)), var(--panel-bg);
+  border-color: rgba(202, 214, 225, 0.16);
+}
+
+[data-theme="x3000"] {  color-scheme: dark;
   --app-bg: #08090a;
   --app-bg-solid: #08090a;
   --surface-1: #111214;
@@ -389,7 +414,7 @@
 /* ---- Shared accent + neutral scales ------------------------------------- */
 /* The default palette keeps Tailwind's built-in scales untouched. */
 
-[data-theme="steel"],
+[data-theme="onyx"],
 [data-theme="x3000"],
 [data-theme="midnight"],
 [data-theme="morning"],

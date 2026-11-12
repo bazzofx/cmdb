@@ -9,7 +9,7 @@ import React, {
 
 export type ThemeName =
   | 'default'
-  | 'steel'
+  | 'onyx'
   | 'x3000'
   | 'midnight'
   | 'morning'
@@ -34,10 +34,10 @@ export const THEME_OPTIONS: ThemeOption[] = [
     swatches: ['#070B14', '#2563EB', '#06B6D4'],
   },
   {
-    id: 'steel',
-    label: 'Steel',
-    description: 'Steel blue and shock orange.',
-    swatches: ['#0A0F14', '#3E6F96', '#FF5A1F'],
+    id: 'onyx',
+    label: 'Onyx',
+    description: 'Brushed tungsten, graphite and layered metallic greys.',
+    swatches: ['#08090B', '#9AA7B4', '#D9E0E7'],
   },
   {
     id: 'x3000',
@@ -73,10 +73,15 @@ export const THEME_OPTIONS: ThemeOption[] = [
 ];
 
 export const THEME_STORAGE_KEY = 'csm-theme';
-export const DEFAULT_THEME: ThemeName = 'steel';
+export const DEFAULT_THEME: ThemeName = 'cyber';
 
 export const isThemeName = (value: string | null | undefined): value is ThemeName =>
   Boolean(value && THEME_OPTIONS.some(option => option.id === value));
+
+const normalizeStoredTheme = (value: string | null): ThemeName => {
+  if (value === 'steel') return 'onyx';
+  return isThemeName(value) ? value : DEFAULT_THEME;
+};
 
 interface ThemeContextValue {
   theme: ThemeName;
@@ -90,7 +95,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window === 'undefined') return DEFAULT_THEME;
     try {
       const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-      return isThemeName(stored) ? stored : DEFAULT_THEME;
+      return normalizeStoredTheme(stored);
     } catch {
       return DEFAULT_THEME;
     }

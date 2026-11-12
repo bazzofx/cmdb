@@ -46,17 +46,17 @@ Supporting documents:
 
 ## Colour palettes
 
-The palette picker sits in the top-right of the navbar (paint-palette button) and applies instantly across the shell and every view. The selection is stored per device in `localStorage` under `csm-theme`; an inline script in `index.html` applies it before first paint. New browsers start on **Steel**.
+The palette picker sits in the top-right of the navbar (paint-palette button) and applies instantly across the shell and every view. The selection is stored per device in `localStorage` under `csm-theme`; an inline script in `index.html` applies it before first paint. New browsers start on **Cyber**.
 
 | Palette | Character |
 |---|---|
 | **Default** | The original navy, blue and cyan SOC scheme |
-| **Steel** | Steel blue with shock-orange highlights (startup palette) |
+| **Onyx** | Brushed tungsten, graphite and layered metallic greys |
 | **X3000** | Titanium black and light grey with shock-pink highlights |
 | **Midnight** | Midnight black with neon green |
 | **Morning** | Light mode: paper white, beige and dark grey with orange and blue accents |
 | **Coffee** | Dark brown, soft pastel yellow and cream |
-| **Cyber** | Neon violet/cyan palette with a particle canvas, drifting grid, panel glow and page-enter motion |
+| **Cyber** | Neon violet/cyan palette with a particle canvas, drifting grid, panel glow and page-enter motion (default) |
 
 Cyber respects `prefers-reduced-motion`: the particles render as a static field and the motion animations are disabled. The login screen renders the richer version of the same field for every palette — more particles, curved nearest-neighbour links, travelling light pulses, short motion trails and gold sparks — while the signed-in ambient canvas is only shown for Cyber. The logo, favicon (`/assets/favourites.ico`) and page title are shared by every palette. Palette mechanics live in [`src/theme/palettes.css`](../src/theme/palettes.css) and [`src/theme/ThemeContext.tsx`](../src/theme/ThemeContext.tsx).
 
